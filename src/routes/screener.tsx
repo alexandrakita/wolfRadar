@@ -214,10 +214,13 @@ function ScreenerPage() {
   const setApplied = isStocks ? setAppliedStock : setAppliedEtf;
   const fields = isStocks ? STOCK_FILTERS : ETF_FILTERS;
 
-  const stockSymbols = useMemo(() => STOCKS.map((s) => s.sym), []);
   const etfSymbols = useMemo(() => ETFS.map((e) => e.sym), []);
-  const { quotes: stockQuotes } = useQuotes(stockSymbols);
   const { quotes: etfQuotes } = useQuotes(etfSymbols);
+
+  // Lazy-load stocks: render & fetch quotes for `visibleCount` rows at a time.
+  const PAGE = 25;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null);
 
   const chips = useMemo(() => {
     const labelOf = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
