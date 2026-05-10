@@ -104,14 +104,28 @@ function FilterField({ label, children }: { label: string; children: React.React
   );
 }
 
-function SelectFilter({ options, placeholder }: { options: string[]; placeholder?: string }) {
+type FilterValue = string | { min?: string; max?: string };
+type FilterState = Record<string, FilterValue>;
+
+function SelectFilter({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}) {
   return (
-    <Select>
+    <Select value={value ?? ""} onValueChange={(v) => onChange(v === "__any" ? "" : v)}>
       <SelectTrigger className="h-9 bg-background/40">
         <SelectValue placeholder={placeholder ?? "Any"} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((o) => (
+        <SelectItem value="__any">Any</SelectItem>
+        {options.filter((o) => o !== "Any").map((o) => (
           <SelectItem key={o} value={o}>{o}</SelectItem>
         ))}
       </SelectContent>
@@ -119,15 +133,80 @@ function SelectFilter({ options, placeholder }: { options: string[]; placeholder
   );
 }
 
-function RangeFilter({ placeholder = "Any" }: { placeholder?: string }) {
+function RangeFilter({
+  value,
+  onChange,
+}: {
+  value?: { min?: string; max?: string };
+  onChange: (v: { min?: string; max?: string }) => void;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <Input className="h-9 bg-background/40" placeholder="Min" />
+      <Input
+        className="h-9 bg-background/40"
+        placeholder="Min"
+        value={value?.min ?? ""}
+        onChange={(e) => onChange({ ...value, min: e.target.value })}
+      />
       <span className="text-xs text-muted-foreground">—</span>
-      <Input className="h-9 bg-background/40" placeholder="Max" />
+      <Input
+        className="h-9 bg-background/40"
+        placeholder="Max"
+        value={value?.max ?? ""}
+        onChange={(e) => onChange({ ...value, max: e.target.value })}
+      />
     </div>
   );
 }
+
+function formatChip(label: string, v: FilterValue): string | null {
+  if (typeof v === "string") return v ? `${label}: ${v}` : null;
+  const min = v.min?.trim();
+  const max = v.max?.trim();
+  if (!min && !max) return null;
+  if (min && max) return `${label}: ${min}–${max}`;
+  if (min) return `${label} ≥ ${min}`;
+  return `${label} ≤ ${max}`;
+}
+
+const STOCK_FILTERS: { key: string; label: string; type: "select" | "range"; options?: string[]; placeholder?: string }[] = [
+  { key: "country", label: "Country", type: "select", options: COUNTRIES, placeholder: "Any" },
+  { key: "watchlist", label: "Watchlist", type: "select", options: ["Any", "My watchlist", "Favorites", "Holdings"] },
+  { key: "index", label: "Index", type: "select", options: INDEXES },
+  { key: "price", label: "Price", type: "range" },
+  { key: "chg", label: "Chg %", type: "range" },
+  { key: "mktCap", label: "Mkt cap", type: "range" },
+  { key: "pe", label: "P/E", type: "range" },
+  { key: "epsGrowth", label: "EPS dil growth %", type: "range" },
+  { key: "divYield", label: "Div yield %", type: "range" },
+  { key: "sector", label: "Sector", type: "select", options: SECTORS },
+  { key: "rating", label: "Analyst rating", type: "select", options: ANALYST_RATINGS },
+  { key: "perf", label: "Perf %", type: "range" },
+  { key: "revGrowth", label: "Revenue growth %", type: "range" },
+  { key: "peg", label: "PEG", type: "range" },
+  { key: "roe", label: "ROE %", type: "range" },
+  { key: "beta", label: "Beta", type: "range" },
+  { key: "earningsRecent", label: "Recent earnings date", type: "select", options: DATE_RANGES },
+  { key: "earningsUpcoming", label: "Upcoming earnings date", type: "select", options: DATE_RANGES },
+];
+
+const ETF_FILTERS: { key: string; label: string; type: "select" | "range"; options?: string[] }[] = [
+  { key: "country", label: "Country", type: "select", options: COUNTRIES },
+  { key: "assetClass", label: "Asset class", type: "select", options: ASSET_CLASSES },
+  { key: "category", label: "Category", type: "select", options: ETF_CATEGORIES },
+  { key: "brand", label: "Brand / Issuer", type: "select", options: BRANDS },
+  { key: "structure", label: "Structure", type: "select", options: STRUCTURES },
+  { key: "price", label: "Price", type: "range" },
+  { key: "chg", label: "Chg %", type: "range" },
+  { key: "aum", label: "AUM", type: "range" },
+  { key: "expense", label: "Expense ratio %", type: "range" },
+  { key: "divYield", label: "Div yield %", type: "range" },
+  { key: "volume", label: "Volume", type: "range" },
+  { key: "navReturn", label: "NAV total return 1Y %", type: "range" },
+  { key: "beta", label: "Beta (1Y)", type: "range" },
+  { key: "liquidity", label: "Liquidity", type: "select", options: RANGES },
+  { key: "inception", label: "Inception date", type: "select", options: ["Any", "< 1 year", "1-3 years", "3-5 years", "5-10 years", "10+ years"] },
+];
 
 // ---------- Page ----------
 function ScreenerPage() {
@@ -135,12 +214,89 @@ function ScreenerPage() {
   const [tab, setTab] = useState("stocks");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const activeFilters = useMemo(
-    () => (tab === "stocks"
-      ? ["US", "All stocks", "Mkt cap > 1B"]
-      : ["US", "Equity", "Expense < 0.20%"]),
-    [tab],
-  );
+  // Draft = inside dialog. Applied = chips + table filtering.
+  const [draftStock, setDraftStock] = useState<FilterState>({});
+  const [appliedStock, setAppliedStock] = useState<FilterState>({});
+  const [draftEtf, setDraftEtf] = useState<FilterState>({});
+  const [appliedEtf, setAppliedEtf] = useState<FilterState>({});
+
+  const isStocks = tab === "stocks";
+  const draft = isStocks ? draftStock : draftEtf;
+  const setDraft = isStocks ? setDraftStock : setDraftEtf;
+  const applied = isStocks ? appliedStock : appliedEtf;
+  const setApplied = isStocks ? setAppliedStock : setAppliedEtf;
+  const fields = isStocks ? STOCK_FILTERS : ETF_FILTERS;
+
+  const stockSymbols = useMemo(() => STOCKS.map((s) => s.sym), []);
+  const etfSymbols = useMemo(() => ETFS.map((e) => e.sym), []);
+  const { quotes: stockQuotes } = useQuotes(stockSymbols);
+  const { quotes: etfQuotes } = useQuotes(etfSymbols);
+
+  const chips = useMemo(() => {
+    const labelOf = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
+    return Object.entries(applied)
+      .map(([k, v]) => ({ key: k, text: formatChip(labelOf(k), v) }))
+      .filter((c): c is { key: string; text: string } => !!c.text);
+  }, [applied, fields]);
+
+  const removeChip = (key: string) => {
+    setApplied((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setDraft((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const inRange = (n: number | undefined, r?: { min?: string; max?: string }) => {
+    if (!r || n === undefined || Number.isNaN(n)) return true;
+    const min = r.min ? Number(r.min) : undefined;
+    const max = r.max ? Number(r.max) : undefined;
+    if (min !== undefined && !Number.isNaN(min) && n < min) return false;
+    if (max !== undefined && !Number.isNaN(max) && n > max) return false;
+    return true;
+  };
+
+  // Live row composition
+  const stockRows = STOCKS.map((s) => {
+    const q = stockQuotes[s.sym];
+    return {
+      ...s,
+      price: q?.c ?? s.price,
+      chg: q?.dp ?? s.chg,
+    };
+  }).filter((s) => {
+    const f = appliedStock;
+    if (!inRange(s.price, f.price as { min?: string; max?: string })) return false;
+    if (!inRange(s.chg, f.chg as { min?: string; max?: string })) return false;
+    if (!inRange(s.pe, f.pe as { min?: string; max?: string })) return false;
+    if (!inRange(s.epsGrowth, f.epsGrowth as { min?: string; max?: string })) return false;
+    if (typeof f.sector === "string" && f.sector) {
+      // demo: no sector on row, skip filter
+    }
+    return true;
+  });
+
+  const etfRows = ETFS.map((e) => {
+    const q = etfQuotes[e.sym];
+    return {
+      ...e,
+      price: q?.c ?? e.price,
+      chg: q?.dp ?? e.chg,
+    };
+  }).filter((e) => {
+    const f = appliedEtf;
+    if (!inRange(e.price, f.price as { min?: string; max?: string })) return false;
+    if (!inRange(e.chg, f.chg as { min?: string; max?: string })) return false;
+    if (!inRange(e.expense, f.expense as { min?: string; max?: string })) return false;
+    if (!inRange(e.yld, f.divYield as { min?: string; max?: string })) return false;
+    if (typeof f.brand === "string" && f.brand && e.brand !== f.brand) return false;
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -152,10 +308,16 @@ function ScreenerPage() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Stock Screener</h1>
               <p className="mt-2 text-muted-foreground">
-                Filter the market by fundamentals, performance, and technicals.
+                Filter the market by fundamentals, performance, and technicals. Live prices via Finnhub.
               </p>
             </div>
-            <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <Dialog
+              open={filtersOpen}
+              onOpenChange={(o) => {
+                setFiltersOpen(o);
+                if (o) setDraft(applied); // start dialog from currently applied
+              }}
+            >
               <DialogTrigger asChild>
                 <Button
                   className="gap-2 text-primary-foreground"
@@ -170,59 +332,40 @@ function ScreenerPage() {
                 style={{ background: "var(--gradient-card)" }}
               >
                 <DialogHeader>
-                  <DialogTitle>{tab === "stocks" ? "Stock filters" : "ETF filters"}</DialogTitle>
-                  <DialogDescription>
-                    Narrow the universe. Empty fields mean "any".
-                  </DialogDescription>
+                  <DialogTitle>{isStocks ? "Stock filters" : "ETF filters"}</DialogTitle>
+                  <DialogDescription>Narrow the universe. Empty fields mean "any".</DialogDescription>
                 </DialogHeader>
 
-                {tab === "stocks" ? (
-                  <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
-                    <FilterField label="Country"><SelectFilter options={COUNTRIES} placeholder="US" /></FilterField>
-                    <FilterField label="Watchlist"><SelectFilter options={["Any", "My watchlist", "Favorites", "Holdings"]} /></FilterField>
-                    <FilterField label="Index"><SelectFilter options={INDEXES} /></FilterField>
-                    <FilterField label="Price"><RangeFilter /></FilterField>
-                    <FilterField label="Chg %"><RangeFilter /></FilterField>
-                    <FilterField label="Mkt cap"><RangeFilter /></FilterField>
-                    <FilterField label="P/E"><RangeFilter /></FilterField>
-                    <FilterField label="EPS dil growth %"><RangeFilter /></FilterField>
-                    <FilterField label="Div yield %"><RangeFilter /></FilterField>
-                    <FilterField label="Sector"><SelectFilter options={SECTORS} /></FilterField>
-                    <FilterField label="Analyst rating"><SelectFilter options={ANALYST_RATINGS} /></FilterField>
-                    <FilterField label="Perf %"><RangeFilter /></FilterField>
-                    <FilterField label="Revenue growth %"><RangeFilter /></FilterField>
-                    <FilterField label="PEG"><RangeFilter /></FilterField>
-                    <FilterField label="ROE %"><RangeFilter /></FilterField>
-                    <FilterField label="Beta"><RangeFilter /></FilterField>
-                    <FilterField label="Recent earnings date"><SelectFilter options={DATE_RANGES} /></FilterField>
-                    <FilterField label="Upcoming earnings date"><SelectFilter options={DATE_RANGES} /></FilterField>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
-                    <FilterField label="Country"><SelectFilter options={COUNTRIES} placeholder="US" /></FilterField>
-                    <FilterField label="Asset class"><SelectFilter options={ASSET_CLASSES} /></FilterField>
-                    <FilterField label="Category"><SelectFilter options={ETF_CATEGORIES} /></FilterField>
-                    <FilterField label="Brand / Issuer"><SelectFilter options={BRANDS} /></FilterField>
-                    <FilterField label="Structure"><SelectFilter options={STRUCTURES} /></FilterField>
-                    <FilterField label="Price"><RangeFilter /></FilterField>
-                    <FilterField label="Chg %"><RangeFilter /></FilterField>
-                    <FilterField label="AUM"><RangeFilter /></FilterField>
-                    <FilterField label="Expense ratio %"><RangeFilter /></FilterField>
-                    <FilterField label="Div yield %"><RangeFilter /></FilterField>
-                    <FilterField label="Volume"><RangeFilter /></FilterField>
-                    <FilterField label="NAV total return 1Y %"><RangeFilter /></FilterField>
-                    <FilterField label="Beta (1Y)"><RangeFilter /></FilterField>
-                    <FilterField label="Liquidity"><SelectFilter options={RANGES} /></FilterField>
-                    <FilterField label="Inception date"><SelectFilter options={["Any", "< 1 year", "1-3 years", "3-5 years", "5-10 years", "10+ years"]} /></FilterField>
-                  </div>
-                )}
+                <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
+                  {fields.map((f) => (
+                    <div key={f.key} className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">{f.label}</Label>
+                      {f.type === "select" ? (
+                        <SelectFilter
+                          value={(draft[f.key] as string) ?? ""}
+                          onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                          options={f.options ?? []}
+                          placeholder={f.placeholder}
+                        />
+                      ) : (
+                        <RangeFilter
+                          value={draft[f.key] as { min?: string; max?: string } | undefined}
+                          onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
 
                 <DialogFooter className="gap-2">
-                  <Button variant="ghost" onClick={() => setFiltersOpen(false)}>Reset</Button>
+                  <Button variant="ghost" onClick={() => setDraft({})}>Reset</Button>
                   <Button
                     className="text-primary-foreground"
                     style={{ background: "var(--gradient-primary)" }}
-                    onClick={() => setFiltersOpen(false)}
+                    onClick={() => {
+                      setApplied(draft);
+                      setFiltersOpen(false);
+                    }}
                   >
                     Apply filters
                   </Button>
@@ -232,14 +375,34 @@ function ScreenerPage() {
           </div>
 
           {/* Active filter chips */}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            {activeFilters.map((f) => (
-              <Badge key={f} variant="secondary" className="gap-1 rounded-full bg-secondary/60 px-3 py-1 text-xs">
-                {f}
-                <X className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground" />
-              </Badge>
-            ))}
-          </div>
+          {chips.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {chips.map((c) => (
+                <Badge
+                  key={c.key}
+                  variant="secondary"
+                  className="gap-1 rounded-full bg-secondary/60 px-3 py-1 text-xs"
+                >
+                  {c.text}
+                  <button
+                    type="button"
+                    onClick={() => removeChip(c.key)}
+                    className="ml-1 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                    aria-label={`Remove ${c.text}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+              <button
+                type="button"
+                onClick={() => setApplied({})}
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="bg-secondary/60">
@@ -267,7 +430,7 @@ function ScreenerPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {STOCKS.map((s) => {
+                      {stockRows.map((s) => {
                         const up = s.chg >= 0;
                         const epsUp = s.epsGrowth >= 0;
                         return (
@@ -297,6 +460,9 @@ function ScreenerPage() {
                           </tr>
                         );
                       })}
+                      {stockRows.length === 0 && (
+                        <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No stocks match the current filters.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -323,7 +489,7 @@ function ScreenerPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {ETFS.map((e) => {
+                      {etfRows.map((e) => {
                         const up = e.chg >= 0;
                         return (
                           <tr key={e.sym} className="transition hover:bg-secondary/30">
@@ -350,6 +516,9 @@ function ScreenerPage() {
                           </tr>
                         );
                       })}
+                      {etfRows.length === 0 && (
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">No ETFs match the current filters.</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -361,3 +530,4 @@ function ScreenerPage() {
     </div>
   );
 }
+
