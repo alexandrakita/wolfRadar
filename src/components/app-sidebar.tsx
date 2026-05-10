@@ -63,9 +63,10 @@ export function AppSidebar({
 
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
-          const active = item.url === "/" ? path === "/" : false;
-          const Cmp: any = item.url === "/" ? Link : "a";
-          const linkProps = item.url === "/" ? { to: "/" } : { href: item.url };
+          const isInternal = item.url.startsWith("/");
+          const active = isInternal && (item.url === "/" ? path === "/" : path.startsWith(item.url));
+          const Cmp: any = isInternal ? Link : "a";
+          const linkProps = isInternal ? { to: item.url } : { href: item.url };
           return (
             <Cmp
               key={item.title}
