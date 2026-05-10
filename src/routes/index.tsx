@@ -42,7 +42,7 @@ const TRENDING = [
 
 function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
-  const { quotes, loading } = useQuotes(TRENDING.map((t) => t.sym));
+  const { quotes } = useQuotes(TRENDING.map((t) => t.sym));
 
   const trending = TRENDING.map((t) => {
     const q = quotes[t.sym];
