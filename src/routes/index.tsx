@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { ArrowDownRight, ArrowUpRight, DollarSign, Activity, BarChart3, Eye } from "lucide-react";
+import { useQuotes } from "@/hooks/use-quotes";
 import {
   Area,
   AreaChart,
