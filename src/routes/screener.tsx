@@ -483,6 +483,20 @@ function ScreenerPage() {
                       {stockRows.length === 0 && (
                         <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No stocks match the current filters.</td></tr>
                       )}
+                      {visibleCount < filteredStocks.length && (
+                        <tr ref={sentinelRef}>
+                          <td colSpan={9} className="px-4 py-6 text-center text-xs text-muted-foreground">
+                            Loading more… ({stockRows.length} of {filteredStocks.length})
+                          </td>
+                        </tr>
+                      )}
+                      {visibleCount >= filteredStocks.length && stockRows.length > 0 && (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-4 text-center text-xs text-muted-foreground">
+                            End of results · {filteredStocks.length} stocks
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
