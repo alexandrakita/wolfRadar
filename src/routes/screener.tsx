@@ -345,7 +345,7 @@ function ScreenerPage() {
                           value={(draft[f.key] as string) ?? ""}
                           onChange={(v) => setDraft({ ...draft, [f.key]: v })}
                           options={f.options ?? []}
-                          placeholder={f.placeholder}
+                          placeholder={(f as { placeholder?: string }).placeholder}
                         />
                       ) : (
                         <RangeFilter
