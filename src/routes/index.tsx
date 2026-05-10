@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { ArrowDownRight, ArrowUpRight, DollarSign, Activity, BarChart3, Eye } from "lucide-react";
+import { useQuotes } from "@/hooks/use-quotes";
 import {
   Area,
   AreaChart,
@@ -28,24 +29,39 @@ const chartData = [
   { d: "Thu", v: 4520 }, { d: "Fri", v: 4690 }, { d: "Sat", v: 4640 }, { d: "Sun", v: 4810 },
 ];
 
-const metrics = [
-  { label: "Portfolio Value", value: "$48,210", change: "+2.4%", up: true, icon: DollarSign },
-  { label: "Day's P/L", value: "+$1,124", change: "+1.1%", up: true, icon: Activity },
-  { label: "Volatility", value: "1.82", change: "-0.3%", up: false, icon: BarChart3 },
-  { label: "Watchlist", value: "12", change: "+3 new", up: true, icon: Eye },
-];
 
-const trending = [
-  { sym: "NVDA", name: "NVIDIA Corp", price: 924.30, change: 3.42 },
-  { sym: "AAPL", name: "Apple Inc.", price: 213.55, change: 1.18 },
-  { sym: "TSLA", name: "Tesla, Inc.", price: 248.90, change: -2.10 },
-  { sym: "MSFT", name: "Microsoft", price: 432.18, change: 0.84 },
-  { sym: "AMZN", name: "Amazon.com", price: 184.72, change: 2.05 },
-  { sym: "META", name: "Meta Platforms", price: 498.11, change: -0.62 },
+
+const TRENDING = [
+  { sym: "NVDA", name: "NVIDIA Corp" },
+  { sym: "AAPL", name: "Apple Inc." },
+  { sym: "TSLA", name: "Tesla, Inc." },
+  { sym: "MSFT", name: "Microsoft" },
+  { sym: "AMZN", name: "Amazon.com" },
+  { sym: "META", name: "Meta Platforms" },
 ];
 
 function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
+  const { quotes } = useQuotes(TRENDING.map((t) => t.sym));
+
+  const trending = TRENDING.map((t) => {
+    const q = quotes[t.sym];
+    return { ...t, price: q?.c ?? 0, change: q?.dp ?? 0 };
+  });
+
+  const metrics = useMemo(() => {
+    const list = Object.values(quotes).filter(Boolean) as NonNullable<typeof quotes[string]>[];
+    const avgChange = list.length ? list.reduce((s, q) => s + q.dp, 0) / list.length : 0;
+    const gainers = list.filter((q) => q.dp >= 0).length;
+    const portfolio = list.reduce((s, q) => s + q.c * 10, 0); // 10 shares each, demo
+    const dayPL = list.reduce((s, q) => s + q.d * 10, 0);
+    return [
+      { label: "Portfolio Value", value: portfolio ? `$${portfolio.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—", change: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%`, up: avgChange >= 0, icon: DollarSign },
+      { label: "Day's P/L", value: dayPL ? `${dayPL >= 0 ? "+" : ""}$${Math.abs(dayPL).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—", change: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%`, up: dayPL >= 0, icon: Activity },
+      { label: "Gainers / Losers", value: list.length ? `${gainers} / ${list.length - gainers}` : "—", change: `${list.length} tracked`, up: gainers >= list.length / 2, icon: BarChart3 },
+      { label: "Watchlist", value: String(TRENDING.length), change: "live", up: true, icon: Eye },
+    ];
+  }, [quotes]);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
