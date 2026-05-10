@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { useQuotes } from "@/hooks/use-quotes";
 import {
   Dialog,
   DialogContent,
