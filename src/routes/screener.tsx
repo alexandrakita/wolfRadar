@@ -251,25 +251,55 @@ function ScreenerPage() {
     return true;
   };
 
-  // Live row composition
-  const stockRows = STOCKS.map((s) => {
-    const q = stockQuotes[s.sym];
-    return {
-      ...s,
-      price: q?.c ?? s.price,
-      chg: q?.dp ?? s.chg,
-    };
-  }).filter((s) => {
+  // Filter the universe BEFORE slicing for pagination.
+  const filteredStocks = useMemo(() => {
     const f = appliedStock;
-    if (!inRange(s.price, f.price as { min?: string; max?: string })) return false;
-    if (!inRange(s.chg, f.chg as { min?: string; max?: string })) return false;
-    if (!inRange(s.pe, f.pe as { min?: string; max?: string })) return false;
-    if (!inRange(s.epsGrowth, f.epsGrowth as { min?: string; max?: string })) return false;
-    if (typeof f.sector === "string" && f.sector) {
-      // demo: no sector on row, skip filter
-    }
-    return true;
+    return STOCKS.filter((s) => {
+      if (!inRange(s.price, f.price as { min?: string; max?: string })) return false;
+      if (!inRange(s.chg, f.chg as { min?: string; max?: string })) return false;
+      if (!inRange(s.pe, f.pe as { min?: string; max?: string })) return false;
+      if (!inRange(s.epsGrowth, f.epsGrowth as { min?: string; max?: string })) return false;
+      if (typeof f.sector === "string" && f.sector && s.sector !== f.sector) return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedStock]);
+
+  // Reset pagination when filters or tab change.
+  useEffect(() => {
+    setVisibleCount(PAGE);
+  }, [appliedStock, tab]);
+
+  const visibleStocks = filteredStocks.slice(0, visibleCount);
+  const visibleStockSymbols = useMemo(
+    () => visibleStocks.map((s) => s.sym),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleStocks.map((s) => s.sym).join(",")],
+  );
+  const { quotes: stockQuotes } = useQuotes(visibleStockSymbols);
+
+  const stockRows = visibleStocks.map((s) => {
+    const q = stockQuotes[s.sym];
+    return { ...s, price: q?.c ?? s.price, chg: q?.dp ?? s.chg };
   });
+
+  // Infinite scroll: observe sentinel row.
+  useEffect(() => {
+    if (!isStocks) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (visibleCount >= filteredStocks.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE, filteredStocks.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isStocks, visibleCount, filteredStocks.length]);
 
   const etfRows = ETFS.map((e) => {
     const q = etfQuotes[e.sym];
