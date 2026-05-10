@@ -46,10 +46,10 @@ const COUNTRIES = ["US", "Canada", "UK", "Germany", "France", "Japan", "China", 
 const INDEXES = ["Any", "S&P 500", "Nasdaq 100", "Dow 30", "Russell 1000", "Russell 2000", "S&P MidCap 400"];
 const SECTORS = [
   "Any", "Technology Services", "Electronic Technology", "Finance", "Health Technology",
-  "Retail Trade", "Energy Minerals", "Consumer Services", "Producer Manufacturing",
-  "Consumer Non-Durables", "Utilities", "Communications", "Process Industries",
-  "Transportation", "Industrial Services", "Commercial Services", "Health Services",
-  "Non-Energy Minerals", "Distribution Services", "Miscellaneous",
+  "Retail Trade", "Energy Minerals", "Consumer Services", "Consumer Durables",
+  "Producer Manufacturing", "Consumer Non-Durables", "Utilities", "Communications",
+  "Process Industries", "Transportation", "Industrial Services", "Commercial Services",
+  "Health Services", "Non-Energy Minerals", "Distribution Services", "Miscellaneous",
 ];
 const ANALYST_RATINGS = ["Any", "Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"];
 const RANGES = ["Any", "Below average", "Average", "Above average", "High"];
