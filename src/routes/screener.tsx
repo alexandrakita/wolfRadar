@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useQuotes } from "@/hooks/use-quotes";
+import { STOCK_UNIVERSE } from "@/lib/stock-universe";
 import {
   Dialog,
   DialogContent,
@@ -45,10 +46,10 @@ const COUNTRIES = ["US", "Canada", "UK", "Germany", "France", "Japan", "China", 
 const INDEXES = ["Any", "S&P 500", "Nasdaq 100", "Dow 30", "Russell 1000", "Russell 2000", "S&P MidCap 400"];
 const SECTORS = [
   "Any", "Technology Services", "Electronic Technology", "Finance", "Health Technology",
-  "Retail Trade", "Energy Minerals", "Consumer Services", "Producer Manufacturing",
-  "Consumer Non-Durables", "Utilities", "Communications", "Process Industries",
-  "Transportation", "Industrial Services", "Commercial Services", "Health Services",
-  "Non-Energy Minerals", "Distribution Services", "Miscellaneous",
+  "Retail Trade", "Energy Minerals", "Consumer Services", "Consumer Durables",
+  "Producer Manufacturing", "Consumer Non-Durables", "Utilities", "Communications",
+  "Process Industries", "Transportation", "Industrial Services", "Commercial Services",
+  "Health Services", "Non-Energy Minerals", "Distribution Services", "Miscellaneous",
 ];
 const ANALYST_RATINGS = ["Any", "Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"];
 const RANGES = ["Any", "Below average", "Average", "Above average", "High"];
@@ -63,22 +64,8 @@ const ETF_CATEGORIES = [
 const BRANDS = ["Any", "iShares", "Vanguard", "SPDR", "Invesco", "Schwab", "ProShares", "First Trust", "WisdomTree"];
 const STRUCTURES = ["Any", "ETF", "ETN", "ETC", "Open-ended fund"];
 
-// ---------- Mock rows ----------
-type StockRow = {
-  sym: string; name: string; price: number; chg: number; vol: string; relVol: number;
-  mktCap: string; pe: number; eps: number; epsGrowth: number;
-};
-const STOCKS: StockRow[] = [
-  { sym: "NVDA", name: "NVIDIA Corporation", price: 215.20, chg: 1.75, vol: "136.42M", relVol: 0.82, mktCap: "5.23T", pe: 43.90, eps: 4.90, epsGrowth: 66.75 },
-  { sym: "GOOG", name: "Alphabet Inc.",      price: 397.05, chg: 0.44, vol: "13.76M",  relVol: 0.62, mktCap: "4.84T", pe: 30.29, eps: 13.11, epsGrowth: 46.19 },
-  { sym: "AAPL", name: "Apple Inc.",         price: 293.32, chg: 2.05, vol: "52.69M",  relVol: 1.01, mktCap: "4.31T", pe: 35.48, eps: 8.27,  epsGrowth: 29.00 },
-  { sym: "MSFT", name: "Microsoft Corporation", price: 415.12, chg: -1.34, vol: "33.38M", relVol: 0.96, mktCap: "3.08T", pe: 24.72, eps: 16.79, epsGrowth: 29.75 },
-  { sym: "AMZN", name: "Amazon.com, Inc.",   price: 272.68, chg: 0.56, vol: "34.73M",  relVol: 0.65, mktCap: "2.93T", pe: 32.59, eps: 8.37,  epsGrowth: 36.48 },
-  { sym: "AVGO", name: "Broadcom Inc.",      price: 430.00, chg: 4.23, vol: "22.56M",  relVol: 1.16, mktCap: "2.04T", pe: 83.88, eps: 5.13,  epsGrowth: 147.26 },
-  { sym: "TSLA", name: "Tesla, Inc.",        price: 428.35, chg: 4.02, vol: "65.05M",  relVol: 1.17, mktCap: "1.61T", pe: 391.33, eps: 1.09, epsGrowth: -39.80 },
-  { sym: "META", name: "Meta Platforms, Inc.", price: 609.63, chg: -1.16, vol: "13.56M", relVol: 0.69, mktCap: "1.55T", pe: 22.16, eps: 27.51, epsGrowth: 7.29 },
-  { sym: "WMT",  name: "Walmart Inc.",       price: 130.43, chg: 0.18, vol: "15.18M",  relVol: 1.02, mktCap: "1.04T", pe: 47.78, eps: 2.73,  epsGrowth: 13.38 },
-];
+// ---------- Universe ----------
+const STOCKS = STOCK_UNIVERSE;
 
 type EtfRow = {
   sym: string; name: string; price: number; chg: number; aum: string; expense: number; yld: number; brand: string;
@@ -227,10 +214,13 @@ function ScreenerPage() {
   const setApplied = isStocks ? setAppliedStock : setAppliedEtf;
   const fields = isStocks ? STOCK_FILTERS : ETF_FILTERS;
 
-  const stockSymbols = useMemo(() => STOCKS.map((s) => s.sym), []);
   const etfSymbols = useMemo(() => ETFS.map((e) => e.sym), []);
-  const { quotes: stockQuotes } = useQuotes(stockSymbols);
   const { quotes: etfQuotes } = useQuotes(etfSymbols);
+
+  // Lazy-load stocks: render & fetch quotes for `visibleCount` rows at a time.
+  const PAGE = 25;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null);
 
   const chips = useMemo(() => {
     const labelOf = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
@@ -261,25 +251,55 @@ function ScreenerPage() {
     return true;
   };
 
-  // Live row composition
-  const stockRows = STOCKS.map((s) => {
-    const q = stockQuotes[s.sym];
-    return {
-      ...s,
-      price: q?.c ?? s.price,
-      chg: q?.dp ?? s.chg,
-    };
-  }).filter((s) => {
+  // Filter the universe BEFORE slicing for pagination.
+  const filteredStocks = useMemo(() => {
     const f = appliedStock;
-    if (!inRange(s.price, f.price as { min?: string; max?: string })) return false;
-    if (!inRange(s.chg, f.chg as { min?: string; max?: string })) return false;
-    if (!inRange(s.pe, f.pe as { min?: string; max?: string })) return false;
-    if (!inRange(s.epsGrowth, f.epsGrowth as { min?: string; max?: string })) return false;
-    if (typeof f.sector === "string" && f.sector) {
-      // demo: no sector on row, skip filter
-    }
-    return true;
+    return STOCKS.filter((s) => {
+      if (!inRange(s.price, f.price as { min?: string; max?: string })) return false;
+      if (!inRange(s.chg, f.chg as { min?: string; max?: string })) return false;
+      if (!inRange(s.pe, f.pe as { min?: string; max?: string })) return false;
+      if (!inRange(s.epsGrowth, f.epsGrowth as { min?: string; max?: string })) return false;
+      if (typeof f.sector === "string" && f.sector && s.sector !== f.sector) return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedStock]);
+
+  // Reset pagination when filters or tab change.
+  useEffect(() => {
+    setVisibleCount(PAGE);
+  }, [appliedStock, tab]);
+
+  const visibleStocks = filteredStocks.slice(0, visibleCount);
+  const visibleStockSymbols = useMemo(
+    () => visibleStocks.map((s) => s.sym),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleStocks.map((s) => s.sym).join(",")],
+  );
+  const { quotes: stockQuotes } = useQuotes(visibleStockSymbols);
+
+  const stockRows = visibleStocks.map((s) => {
+    const q = stockQuotes[s.sym];
+    return { ...s, price: q?.c ?? s.price, chg: q?.dp ?? s.chg };
   });
+
+  // Infinite scroll: observe sentinel row.
+  useEffect(() => {
+    if (!isStocks) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (visibleCount >= filteredStocks.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE, filteredStocks.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isStocks, visibleCount, filteredStocks.length]);
 
   const etfRows = ETFS.map((e) => {
     const q = etfQuotes[e.sym];
@@ -462,6 +482,20 @@ function ScreenerPage() {
                       })}
                       {stockRows.length === 0 && (
                         <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No stocks match the current filters.</td></tr>
+                      )}
+                      {visibleCount < filteredStocks.length && (
+                        <tr ref={sentinelRef}>
+                          <td colSpan={9} className="px-4 py-6 text-center text-xs text-muted-foreground">
+                            Loading more… ({stockRows.length} of {filteredStocks.length})
+                          </td>
+                        </tr>
+                      )}
+                      {visibleCount >= filteredStocks.length && stockRows.length > 0 && (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-4 text-center text-xs text-muted-foreground">
+                            End of results · {filteredStocks.length} stocks
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
