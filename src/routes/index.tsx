@@ -29,12 +29,7 @@ const chartData = [
   { d: "Thu", v: 4520 }, { d: "Fri", v: 4690 }, { d: "Sat", v: 4640 }, { d: "Sun", v: 4810 },
 ];
 
-const metrics = [
-  { label: "Portfolio Value", value: "$48,210", change: "+2.4%", up: true, icon: DollarSign },
-  { label: "Day's P/L", value: "+$1,124", change: "+1.1%", up: true, icon: Activity },
-  { label: "Volatility", value: "1.82", change: "-0.3%", up: false, icon: BarChart3 },
-  { label: "Watchlist", value: "12", change: "+3 new", up: true, icon: Eye },
-];
+
 
 const TRENDING = [
   { sym: "NVDA", name: "NVIDIA Corp" },
