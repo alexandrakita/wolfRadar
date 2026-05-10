@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Screener", url: "#", icon: LineChart },
+  { title: "Screener", url: "/screener", icon: LineChart },
   { title: "Watchlist", url: "#", icon: Star },
   { title: "Portfolio", url: "#", icon: Wallet },
   { title: "Alerts", url: "#", icon: Bell },
