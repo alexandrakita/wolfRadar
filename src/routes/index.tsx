@@ -36,17 +36,37 @@ const metrics = [
   { label: "Watchlist", value: "12", change: "+3 new", up: true, icon: Eye },
 ];
 
-const trending = [
-  { sym: "NVDA", name: "NVIDIA Corp", price: 924.30, change: 3.42 },
-  { sym: "AAPL", name: "Apple Inc.", price: 213.55, change: 1.18 },
-  { sym: "TSLA", name: "Tesla, Inc.", price: 248.90, change: -2.10 },
-  { sym: "MSFT", name: "Microsoft", price: 432.18, change: 0.84 },
-  { sym: "AMZN", name: "Amazon.com", price: 184.72, change: 2.05 },
-  { sym: "META", name: "Meta Platforms", price: 498.11, change: -0.62 },
+const TRENDING = [
+  { sym: "NVDA", name: "NVIDIA Corp" },
+  { sym: "AAPL", name: "Apple Inc." },
+  { sym: "TSLA", name: "Tesla, Inc." },
+  { sym: "MSFT", name: "Microsoft" },
+  { sym: "AMZN", name: "Amazon.com" },
+  { sym: "META", name: "Meta Platforms" },
 ];
 
 function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
+  const { quotes, loading } = useQuotes(TRENDING.map((t) => t.sym));
+
+  const trending = TRENDING.map((t) => {
+    const q = quotes[t.sym];
+    return { ...t, price: q?.c ?? 0, change: q?.dp ?? 0 };
+  });
+
+  const metrics = useMemo(() => {
+    const list = Object.values(quotes).filter(Boolean) as NonNullable<typeof quotes[string]>[];
+    const avgChange = list.length ? list.reduce((s, q) => s + q.dp, 0) / list.length : 0;
+    const gainers = list.filter((q) => q.dp >= 0).length;
+    const portfolio = list.reduce((s, q) => s + q.c * 10, 0); // 10 shares each, demo
+    const dayPL = list.reduce((s, q) => s + q.d * 10, 0);
+    return [
+      { label: "Portfolio Value", value: portfolio ? `$${portfolio.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—", change: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%`, up: avgChange >= 0, icon: DollarSign },
+      { label: "Day's P/L", value: dayPL ? `${dayPL >= 0 ? "+" : ""}$${Math.abs(dayPL).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—", change: `${avgChange >= 0 ? "+" : ""}${avgChange.toFixed(2)}%`, up: dayPL >= 0, icon: Activity },
+      { label: "Gainers / Losers", value: list.length ? `${gainers} / ${list.length - gainers}` : "—", change: `${list.length} tracked`, up: gainers >= list.length / 2, icon: BarChart3 },
+      { label: "Watchlist", value: String(TRENDING.length), change: "live", up: true, icon: Eye },
+    ];
+  }, [quotes]);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
