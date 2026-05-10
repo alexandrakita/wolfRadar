@@ -63,11 +63,13 @@ export function AppSidebar({
 
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
-          const active = path === item.url;
+          const active = item.url === "/" ? path === "/" : false;
+          const Cmp: any = item.url === "/" ? Link : "a";
+          const linkProps = item.url === "/" ? { to: "/" } : { href: item.url };
           return (
-            <Link
+            <Cmp
               key={item.title}
-              to={item.url}
+              {...linkProps}
               className={cn(
                 "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                 active
@@ -78,7 +80,7 @@ export function AppSidebar({
             >
               <item.icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate">{item.title}</span>}
-            </Link>
+            </Cmp>
           );
         })}
       </nav>
