@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Screener", url: "/screener", icon: LineChart },
-  { title: "Watchlist", url: "/watchlist", icon: Star },
-  { title: "Portfolio", url: "/portfolio", icon: Wallet },
-  { title: "Alerts", url: "/alerts", icon: Bell },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Screener", url: "#", icon: LineChart },
+  { title: "Watchlist", url: "#", icon: Star },
+  { title: "Portfolio", url: "#", icon: Wallet },
+  { title: "Alerts", url: "#", icon: Bell },
+  { title: "Settings", url: "#", icon: Settings },
 ];
 
 export function AppSidebar({
