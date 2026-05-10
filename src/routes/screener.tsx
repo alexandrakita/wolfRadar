@@ -69,17 +69,7 @@ type StockRow = {
   sym: string; name: string; price: number; chg: number; vol: string; relVol: number;
   mktCap: string; pe: number; eps: number; epsGrowth: number;
 };
-const STOCKS: StockRow[] = [
-  { sym: "NVDA", name: "NVIDIA Corporation", price: 215.20, chg: 1.75, vol: "136.42M", relVol: 0.82, mktCap: "5.23T", pe: 43.90, eps: 4.90, epsGrowth: 66.75 },
-  { sym: "GOOG", name: "Alphabet Inc.",      price: 397.05, chg: 0.44, vol: "13.76M",  relVol: 0.62, mktCap: "4.84T", pe: 30.29, eps: 13.11, epsGrowth: 46.19 },
-  { sym: "AAPL", name: "Apple Inc.",         price: 293.32, chg: 2.05, vol: "52.69M",  relVol: 1.01, mktCap: "4.31T", pe: 35.48, eps: 8.27,  epsGrowth: 29.00 },
-  { sym: "MSFT", name: "Microsoft Corporation", price: 415.12, chg: -1.34, vol: "33.38M", relVol: 0.96, mktCap: "3.08T", pe: 24.72, eps: 16.79, epsGrowth: 29.75 },
-  { sym: "AMZN", name: "Amazon.com, Inc.",   price: 272.68, chg: 0.56, vol: "34.73M",  relVol: 0.65, mktCap: "2.93T", pe: 32.59, eps: 8.37,  epsGrowth: 36.48 },
-  { sym: "AVGO", name: "Broadcom Inc.",      price: 430.00, chg: 4.23, vol: "22.56M",  relVol: 1.16, mktCap: "2.04T", pe: 83.88, eps: 5.13,  epsGrowth: 147.26 },
-  { sym: "TSLA", name: "Tesla, Inc.",        price: 428.35, chg: 4.02, vol: "65.05M",  relVol: 1.17, mktCap: "1.61T", pe: 391.33, eps: 1.09, epsGrowth: -39.80 },
-  { sym: "META", name: "Meta Platforms, Inc.", price: 609.63, chg: -1.16, vol: "13.56M", relVol: 0.69, mktCap: "1.55T", pe: 22.16, eps: 27.51, epsGrowth: 7.29 },
-  { sym: "WMT",  name: "Walmart Inc.",       price: 130.43, chg: 0.18, vol: "15.18M",  relVol: 1.02, mktCap: "1.04T", pe: 47.78, eps: 2.73,  epsGrowth: 13.38 },
-];
+const STOCKS = STOCK_UNIVERSE;
 
 type EtfRow = {
   sym: string; name: string; price: number; chg: number; aum: string; expense: number; yld: number; brand: string;
