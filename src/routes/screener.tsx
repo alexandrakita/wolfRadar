@@ -64,11 +64,7 @@ const ETF_CATEGORIES = [
 const BRANDS = ["Any", "iShares", "Vanguard", "SPDR", "Invesco", "Schwab", "ProShares", "First Trust", "WisdomTree"];
 const STRUCTURES = ["Any", "ETF", "ETN", "ETC", "Open-ended fund"];
 
-// ---------- Mock rows ----------
-type StockRow = {
-  sym: string; name: string; price: number; chg: number; vol: string; relVol: number;
-  mktCap: string; pe: number; eps: number; epsGrowth: number;
-};
+// ---------- Universe ----------
 const STOCKS = STOCK_UNIVERSE;
 
 type EtfRow = {
