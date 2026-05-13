@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchQuotes, type FinnhubQuote } from "@/lib/finnhub";
 
-export function useQuotes(symbols: string[], refreshMs = 60_000) {
+export function useQuotes(symbols: string[], refreshMs = 10_000) {
   const key = symbols.join(",");
   const [quotes, setQuotes] = useState<Record<string, FinnhubQuote | null>>({});
   const [loading, setLoading] = useState(true);
