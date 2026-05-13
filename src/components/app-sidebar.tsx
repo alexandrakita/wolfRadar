@@ -7,11 +7,11 @@ import {
   Bell,
   Wallet,
   Settings,
-  TrendingUp,
   ChevronLeft,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import wolfradarLogo from "@/assets/wolfradar.png";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -40,15 +40,14 @@ export function AppSidebar({
     >
       <div className="flex items-center justify-between gap-2 px-4 py-5">
         <Link to="/" className="flex items-center gap-2 overflow-hidden">
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: "var(--gradient-primary)" }}
-          >
-            <TrendingUp className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <img
+            src={wolfradarLogo}
+            alt="WolfRadar"
+            className="h-9 w-9 shrink-0 object-contain"
+          />
           {!collapsed && (
             <span className="truncate text-lg font-semibold tracking-tight">
-              Stock<span className="text-accent">pillar</span>
+              Wolf<span className="text-accent">Radar</span>
             </span>
           )}
         </Link>
