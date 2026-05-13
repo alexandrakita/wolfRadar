@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StockSymbolRouteImport } from './routes/stock.$symbol'
 
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
@@ -28,35 +29,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StockSymbolRoute = StockSymbolRouteImport.update({
+  id: '/stock/$symbol',
+  path: '/stock/$symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/screener': typeof ScreenerRoute
+  '/stock/$symbol': typeof StockSymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/screener': typeof ScreenerRoute
+  '/stock/$symbol': typeof StockSymbolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/screener': typeof ScreenerRoute
+  '/stock/$symbol': typeof StockSymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/screener'
+  fullPaths: '/' | '/login' | '/screener' | '/stock/$symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/screener'
-  id: '__root__' | '/' | '/login' | '/screener'
+  to: '/' | '/login' | '/screener' | '/stock/$symbol'
+  id: '__root__' | '/' | '/login' | '/screener' | '/stock/$symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ScreenerRoute: typeof ScreenerRoute
+  StockSymbolRoute: typeof StockSymbolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stock/$symbol': {
+      id: '/stock/$symbol'
+      path: '/stock/$symbol'
+      fullPath: '/stock/$symbol'
+      preLoaderRoute: typeof StockSymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ScreenerRoute: ScreenerRoute,
+  StockSymbolRoute: StockSymbolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
