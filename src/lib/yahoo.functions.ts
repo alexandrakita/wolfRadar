@@ -130,13 +130,9 @@ function n(v: unknown): number | null {
 }
 
 async function loadFundamentals(symbol: string): Promise<YahooFundamentals> {
-  const modules = [
-    "summaryDetail",
-    "defaultKeyStatistics",
-    "financialData",
-    "price",
-  ] as const;
-  const qs = await yahooFinance.quoteSummary(symbol, { modules: modules as unknown as string[] });
+  const qs = (await yahooFinance.quoteSummary(symbol, {
+    modules: ["summaryDetail", "defaultKeyStatistics", "financialData", "price"],
+  })) as Record<string, unknown>;
 
   const sd = (qs.summaryDetail ?? {}) as Record<string, unknown>;
   const ks = (qs.defaultKeyStatistics ?? {}) as Record<string, unknown>;
