@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getYahooFundamentals, type YahooFundamentals } from "./yahoo.functions";
 
 export type FinnhubQuote = {
   c: number; d: number; dp: number; h: number; l: number; o: number; pc: number; t: number;
@@ -137,7 +138,7 @@ export const getStockBundle = createServerFn({ method: "POST" })
     const key = apiKeyOrThrow();
     const s = data.symbol;
 
-    const [quote, profile, peers, recommendation, earnings, news, insiderTxnRes, insiderSentRes] =
+    const [quote, profile, peers, recommendation, earnings, news, insiderTxnRes, insiderSentRes, yahoo] =
       await Promise.all([
         cachedFetch<FinnhubQuote | null>(`q:${s}`, TTL.quote,
           `https://finnhub.io/api/v1/quote?symbol=${s}&token=${key}`, null),
@@ -155,18 +156,35 @@ export const getStockBundle = createServerFn({ method: "POST" })
           `https://finnhub.io/api/v1/stock/insider-transactions?symbol=${s}&token=${key}`, { data: [] }),
         cachedFetch<{ data: InsiderSentRow[] }>(`isent:${s}`, TTL.insiderSent,
           `https://finnhub.io/api/v1/stock/insider-sentiment?symbol=${s}&token=${key}`, { data: [] }),
+        getYahooFundamentals({ data: { symbol: s } })
+          .then((r) => r.fundamentals as YahooFundamentals | null)
+          .catch((e) => { console.error(`[bundle] yahoo failed for ${s}:`, (e as Error).message); return null; }),
       ]);
+
+    // Merge: prefer Finnhub for fields it already provides; fill gaps with Yahoo.
+    const mergedProfile: FinnhubProfile & { yahoo?: YahooFundamentals | null } = {
+      ...profile,
+      marketCapitalization:
+        profile.marketCapitalization ??
+        (yahoo?.marketCap != null ? yahoo.marketCap / 1e6 : undefined),
+      shareOutstanding:
+        profile.shareOutstanding ??
+        (yahoo?.sharesOutstanding != null ? yahoo.sharesOutstanding / 1e6 : undefined),
+      currency: profile.currency ?? yahoo?.currency ?? undefined,
+      yahoo, // attach raw Yahoo bundle non-destructively
+    };
 
     return {
       symbol: s,
       quote,
-      profile,
+      profile: mergedProfile,
       peers: Array.isArray(peers) ? peers.filter((p) => p && p !== s).slice(0, 8) : [],
       recommendation: (recommendation ?? []).slice(0, 4),
       earnings: (earnings ?? []).slice(0, 8),
       news: (news ?? []).slice(0, 12),
       insiderTransactions: (insiderTxnRes?.data ?? []).slice(0, 15),
       insiderSentiment: (insiderSentRes?.data ?? []).slice(0, 6),
+      fundamentals: yahoo,
     };
   });
 
