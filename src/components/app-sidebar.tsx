@@ -16,7 +16,7 @@ import wolfradarLogo from "@/assets/wolfradar.png";
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Screener", url: "/screener", icon: LineChart },
-  { title: "Watchlist", url: "#", icon: Star },
+  { title: "Watchlist", url: "/watchlist", icon: Star },
   { title: "Portfolio", url: "#", icon: Wallet },
   { title: "Alerts", url: "#", icon: Bell },
   { title: "Settings", url: "#", icon: Settings },
