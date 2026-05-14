@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getYahooFundamentals, type YahooFundamentals } from "./yahoo.functions";
 
 export type FinnhubQuote = {
   c: number; d: number; dp: number; h: number; l: number; o: number; pc: number; t: number;
