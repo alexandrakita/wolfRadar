@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { getStockBundle } from "@/lib/quotes.functions";
 import { STOCK_UNIVERSE } from "@/lib/stock-universe";
+import { FavoriteButton } from "@/components/favorite-button";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/stock/$symbol")({
@@ -81,6 +82,7 @@ function StockAnalysis() {
                   <div className="flex items-center gap-2">
                     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{sym}</h1>
                     {profile.exchange && <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{profile.exchange}</span>}
+                    <FavoriteButton symbol={sym} size="sm" className="ml-1" />
                   </div>
                   <p className="mt-1 text-muted-foreground">{name}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

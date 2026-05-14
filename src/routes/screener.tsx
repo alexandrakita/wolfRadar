@@ -26,6 +26,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SlidersHorizontal, X, ArrowUpDown } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { FavoriteButton } from "@/components/favorite-button";
 
 export const Route = createFileRoute("/screener")({
   head: () => ({
@@ -439,12 +441,14 @@ function ScreenerPage() {
                   <table className="w-full text-sm">
                     <thead className="border-b border-border/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr>
-                        {["Symbol", "Price", "Chg %", "Vol", "Rel Vol", "Mkt Cap", "P/E", "EPS dil TTM", "EPS dil growth YoY"].map((h) => (
-                          <th key={h} className="whitespace-nowrap px-4 py-3 text-left font-medium">
-                            <span className="inline-flex items-center gap-1">
-                              {h}
-                              <ArrowUpDown className="h-3 w-3 opacity-40" />
-                            </span>
+                        {["", "Symbol", "Price", "Chg %", "Vol", "Rel Vol", "Mkt Cap", "P/E", "EPS dil TTM", "EPS dil growth YoY"].map((h, i) => (
+                          <th key={`${h}-${i}`} className="whitespace-nowrap px-4 py-3 text-left font-medium">
+                            {h && (
+                              <span className="inline-flex items-center gap-1">
+                                {h}
+                                <ArrowUpDown className="h-3 w-3 opacity-40" />
+                              </span>
+                            )}
                           </th>
                         ))}
                       </tr>
@@ -455,8 +459,11 @@ function ScreenerPage() {
                         const epsUp = s.epsGrowth >= 0;
                         return (
                           <tr key={s.sym} className="transition hover:bg-secondary/30">
+                            <td className="px-4 py-3">
+                              <FavoriteButton symbol={s.sym} size="sm" />
+                            </td>
                             <td className="whitespace-nowrap px-4 py-3">
-                              <div className="flex items-center gap-3">
+                              <Link to="/stock/$symbol" params={{ symbol: s.sym }} className="flex items-center gap-3 hover:text-accent">
                                 <div
                                   className="flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-semibold text-primary-foreground"
                                   style={{ background: "var(--gradient-primary)" }}
@@ -467,7 +474,7 @@ function ScreenerPage() {
                                   <div className="font-medium">{s.sym}</div>
                                   <div className="text-xs text-muted-foreground">{s.name}</div>
                                 </div>
-                              </div>
+                              </Link>
                             </td>
                             <td className="px-4 py-3 tabular-nums">{s.price.toFixed(2)} <span className="text-xs text-muted-foreground">USD</span></td>
                             <td className={`px-4 py-3 tabular-nums ${up ? "text-accent" : "text-destructive"}`}>{up ? "+" : ""}{s.chg.toFixed(2)}%</td>
@@ -481,18 +488,18 @@ function ScreenerPage() {
                         );
                       })}
                       {stockRows.length === 0 && (
-                        <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No stocks match the current filters.</td></tr>
+                        <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No stocks match the current filters.</td></tr>
                       )}
                       {visibleCount < filteredStocks.length && (
                         <tr ref={sentinelRef}>
-                          <td colSpan={9} className="px-4 py-6 text-center text-xs text-muted-foreground">
+                          <td colSpan={10} className="px-4 py-6 text-center text-xs text-muted-foreground">
                             Loading more… ({stockRows.length} of {filteredStocks.length})
                           </td>
                         </tr>
                       )}
                       {visibleCount >= filteredStocks.length && stockRows.length > 0 && (
                         <tr>
-                          <td colSpan={9} className="px-4 py-4 text-center text-xs text-muted-foreground">
+                          <td colSpan={10} className="px-4 py-4 text-center text-xs text-muted-foreground">
                             End of results · {filteredStocks.length} stocks
                           </td>
                         </tr>
