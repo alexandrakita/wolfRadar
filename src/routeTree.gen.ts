@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as ScreenerRouteImport } from './routes/screener'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockSymbolRouteImport } from './routes/stock.$symbol'
@@ -23,6 +24,11 @@ const WatchlistRoute = WatchlistRouteImport.update({
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -44,6 +50,7 @@ const StockSymbolRoute = StockSymbolRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$symbol': typeof StockSymbolRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$symbol': typeof StockSymbolRoute
@@ -59,19 +67,33 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$symbol': typeof StockSymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/screener' | '/watchlist' | '/stock/$symbol'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/portfolio'
+    | '/screener'
+    | '/watchlist'
+    | '/stock/$symbol'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/screener' | '/watchlist' | '/stock/$symbol'
+  to:
+    | '/'
+    | '/login'
+    | '/portfolio'
+    | '/screener'
+    | '/watchlist'
+    | '/stock/$symbol'
   id:
     | '__root__'
     | '/'
     | '/login'
+    | '/portfolio'
     | '/screener'
     | '/watchlist'
     | '/stock/$symbol'
@@ -80,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PortfolioRoute: typeof PortfolioRoute
   ScreenerRoute: typeof ScreenerRoute
   WatchlistRoute: typeof WatchlistRoute
   StockSymbolRoute: typeof StockSymbolRoute
@@ -99,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/screener'
       fullPath: '/screener'
       preLoaderRoute: typeof ScreenerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -128,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PortfolioRoute: PortfolioRoute,
   ScreenerRoute: ScreenerRoute,
   WatchlistRoute: WatchlistRoute,
   StockSymbolRoute: StockSymbolRoute,
