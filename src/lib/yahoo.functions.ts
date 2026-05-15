@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 
-// Silence yahoo-finance2 survey/notice noise in serverless logs.
+// v3+ requires instantiation
+const yahooFinance = new YahooFinance();
+
 try {
   // @ts-expect-error suppressNotices exists at runtime
   yahooFinance.suppressNotices?.(["yahooSurvey", "ripHistorical"]);
