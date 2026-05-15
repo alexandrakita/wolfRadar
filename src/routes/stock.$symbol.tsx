@@ -124,6 +124,9 @@ function StockAnalysis() {
             <Stat label="Shares Out" value={profile.shareOutstanding ? formatBig(profile.shareOutstanding * 1e6) : "—"} />
           </section>
 
+          {/* Yahoo Finance fundamentals */}
+          {data?.fundamentals ? <FundamentalsSections f={data.fundamentals} /> : null}
+
           {/* Two-column body */}
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Analyst ratings */}
@@ -354,5 +357,106 @@ function WolfRatingDial({ value }: { value: number | null }) {
         <div className="text-muted-foreground">0–100 score</div>
       </div>
     </div>
+  );
+}
+
+// ---------- Yahoo Fundamentals ----------
+import type { YahooFundamentals } from "@/lib/yahoo.functions";
+
+function fmtNum(n: number | null | undefined, digits = 2) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return n.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+function fmtMoney(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `$${n.toFixed(2)}`;
+}
+function fmtBig(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `$${formatBig(n)}`;
+}
+function fmtPct(n: number | null | undefined, scale = 100) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${(n * scale).toFixed(2)}%`;
+}
+
+function FundamentalsSections({ f }: { f: YahooFundamentals }) {
+  return (
+    <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <Card title="Valuation" subtitle="Yahoo Finance">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Trailing P/E" value={fmtNum(f.trailingPE)} />
+          <Stat label="Forward P/E" value={fmtNum(f.forwardPE)} />
+          <Stat label="PEG Ratio" value={fmtNum(f.pegRatio)} />
+          <Stat label="Price / Book" value={fmtNum(f.priceToBook)} />
+          <Stat label="Price / Sales" value={fmtNum(f.priceToSales)} />
+          <Stat label="EV / EBITDA" value={fmtNum(f.evToEbitda)} />
+          <Stat label="EV / Revenue" value={fmtNum(f.evToRevenue)} />
+          <Stat label="Enterprise Value" value={fmtBig(f.enterpriseValue)} />
+          <Stat label="Book Value" value={fmtMoney(f.bookValue)} />
+        </div>
+      </Card>
+
+      <Card title="Profitability & Margins" subtitle="Trailing twelve months">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Gross Margin" value={fmtPct(f.grossMargins)} />
+          <Stat label="Operating Margin" value={fmtPct(f.operatingMargins)} />
+          <Stat label="Profit Margin" value={fmtPct(f.profitMargins)} />
+          <Stat label="Return on Equity" value={fmtPct(f.returnOnEquity)} />
+          <Stat label="Return on Assets" value={fmtPct(f.returnOnAssets)} />
+          <Stat label="Revenue Growth" value={fmtPct(f.revenueGrowth)} />
+          <Stat label="Earnings Growth" value={fmtPct(f.earningsGrowth)} />
+          <Stat label="EPS Q. Growth" value={fmtPct(f.earningsQuarterlyGrowth)} />
+          <Stat label="Trailing EPS" value={fmtMoney(f.trailingEps)} />
+        </div>
+      </Card>
+
+      <Card title="Income Statement" subtitle="Latest reported">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Total Revenue" value={fmtBig(f.totalRevenue)} />
+          <Stat label="EBITDA" value={fmtBig(f.ebitda)} />
+          <Stat label="Net Income" value={fmtBig(f.netIncomeToCommon)} />
+          <Stat label="Forward EPS" value={fmtMoney(f.forwardEps)} />
+          <Stat label="Total Cash" value={fmtBig(f.totalCash)} />
+          <Stat label="Total Debt" value={fmtBig(f.totalDebt)} />
+        </div>
+      </Card>
+
+      <Card title="Balance Sheet & Risk" subtitle="Liquidity and leverage">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Debt / Equity" value={fmtNum(f.debtToEquity)} />
+          <Stat label="Current Ratio" value={fmtNum(f.currentRatio)} />
+          <Stat label="Quick Ratio" value={fmtNum(f.quickRatio)} />
+          <Stat label="Beta" value={fmtNum(f.beta)} />
+          <Stat label="Short % Float" value={fmtPct(f.shortPercentOfFloat)} />
+          <Stat label="Short Ratio" value={fmtNum(f.shortRatio)} />
+        </div>
+      </Card>
+
+      <Card title="Dividends & Ownership" subtitle="Yields and holders">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="Dividend Yield" value={fmtPct(f.dividendYield, 100)} />
+          <Stat label="Dividend Rate" value={fmtMoney(f.dividendRate)} />
+          <Stat label="Payout Ratio" value={fmtPct(f.payoutRatio)} />
+          <Stat label="Insiders Held" value={fmtPct(f.heldPercentInsiders)} />
+          <Stat label="Institutions Held" value={fmtPct(f.heldPercentInstitutions)} />
+          <Stat label="Avg Vol (3M)" value={f.averageDailyVolume3Month != null ? formatBig(f.averageDailyVolume3Month) : "—"} />
+        </div>
+      </Card>
+
+      <Card title="Price Range & Targets" subtitle="52-week range and analyst targets">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Stat label="52W High" value={fmtMoney(f.fiftyTwoWeekHigh)} />
+          <Stat label="52W Low" value={fmtMoney(f.fiftyTwoWeekLow)} />
+          <Stat label="50-Day Avg" value={fmtMoney(f.fiftyDayAverage)} />
+          <Stat label="200-Day Avg" value={fmtMoney(f.twoHundredDayAverage)} />
+          <Stat label="Target Mean" value={fmtMoney(f.targetMeanPrice)} />
+          <Stat label="Target High" value={fmtMoney(f.targetHighPrice)} />
+          <Stat label="Target Low" value={fmtMoney(f.targetLowPrice)} />
+          <Stat label="Analyst Rating" value={f.recommendationKey ? f.recommendationKey.replace(/_/g, " ") : "—"} />
+          <Stat label="# Analysts" value={fmtNum(f.numberOfAnalystOpinions, 0)} />
+        </div>
+      </Card>
+    </section>
   );
 }
