@@ -124,6 +124,9 @@ function StockAnalysis() {
             <Stat label="Shares Out" value={profile.shareOutstanding ? formatBig(profile.shareOutstanding * 1e6) : "—"} />
           </section>
 
+          {/* Yahoo Finance fundamentals */}
+          {data?.fundamentals ? <FundamentalsSections f={data.fundamentals} /> : null}
+
           {/* Two-column body */}
           <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Analyst ratings */}
