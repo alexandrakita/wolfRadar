@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 const KEY = "wolfradar:portfolio";
 const EVT = "wolfradar:portfolio-change";
 
-export type Holding = { sym: string; shares: number; avgCost: number };
+export type Holding = { sym: string; shares: number; avgCost: number; purchaseDate?: string };
 
 function read(): Holding[] {
   if (typeof window === "undefined") return [];
@@ -14,7 +14,12 @@ function read(): Holding[] {
     if (!Array.isArray(arr)) return [];
     return arr
       .filter((h) => h && typeof h.sym === "string" && typeof h.shares === "number" && typeof h.avgCost === "number")
-      .map((h) => ({ sym: h.sym.toUpperCase(), shares: h.shares, avgCost: h.avgCost }));
+      .map((h) => ({
+        sym: h.sym.toUpperCase(),
+        shares: h.shares,
+        avgCost: h.avgCost,
+        purchaseDate: typeof h.purchaseDate === "string" ? h.purchaseDate : undefined,
+      }));
   } catch {
     return [];
   }

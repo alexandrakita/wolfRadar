@@ -226,6 +226,114 @@ export const getYahooFundamentals = createServerFn({ method: "POST" })
     return { fundamentals };
   });
 
+// ---- Chart (price history) -----------------------------------------------
+export type ChartPoint = { t: number; c: number; o?: number; h?: number; l?: number; v?: number };
+export type ChartRange = "1D" | "5D" | "1M" | "3M" | "6M" | "1Y" | "5Y";
+
+const RANGE_CFG: Record<ChartRange, { period: string; interval: "1m" | "5m" | "15m" | "30m" | "60m" | "90m" | "1h" | "1d" | "5d" | "1wk" | "1mo" | "3mo" }> = {
+  "1D": { period: "1d", interval: "5m" },
+  "5D": { period: "5d", interval: "30m" },
+  "1M": { period: "1mo", interval: "1d" },
+  "3M": { period: "3mo", interval: "1d" },
+  "6M": { period: "6mo", interval: "1d" },
+  "1Y": { period: "1y", interval: "1d" },
+  "5Y": { period: "5y", interval: "1wk" },
+};
+
+export const getYahooChart = createServerFn({ method: "POST" })
+  .inputValidator((input: { symbol: string; range: ChartRange }) => {
+    const s = normSym(input?.symbol);
+    if (!s) throw new Error("Invalid symbol");
+    const r = (["1D", "5D", "1M", "3M", "6M", "1Y", "5Y"] as ChartRange[]).includes(input?.range) ? input.range : "1M";
+    return { symbol: s, range: r };
+  })
+  .handler(async ({ data }) => {
+    const cfg = RANGE_CFG[data.range];
+    const key = `yf:chart:${data.symbol}:${data.range}`;
+    const ttl = data.range === "1D" ? 60_000 : data.range === "5D" ? 5 * 60_000 : 30 * 60_000;
+    const points = await cached<ChartPoint[]>(
+      key,
+      ttl,
+      async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const periodSecs: Record<string, number> = {
+          "1d": 60 * 60 * 24 * 2,
+          "5d": 60 * 60 * 24 * 7,
+          "1mo": 60 * 60 * 24 * 31,
+          "3mo": 60 * 60 * 24 * 95,
+          "6mo": 60 * 60 * 24 * 190,
+          "1y": 60 * 60 * 24 * 370,
+          "5y": 60 * 60 * 24 * 365 * 5 + 60 * 60 * 24 * 5,
+        };
+        const p1 = new Date((now - periodSecs[cfg.period]) * 1000);
+        const p2 = new Date(now * 1000);
+        const res = (await yahooFinance.chart(data.symbol, {
+          period1: p1,
+          period2: p2,
+          interval: cfg.interval,
+        })) as { quotes?: Array<{ date: Date; open: number | null; high: number | null; low: number | null; close: number | null; volume: number | null }> };
+        const quotes = res.quotes ?? [];
+        return quotes
+          .filter((q) => q.close != null && Number.isFinite(q.close))
+          .map((q) => ({
+            t: q.date instanceof Date ? q.date.getTime() : new Date(q.date).getTime(),
+            c: q.close as number,
+            o: q.open ?? undefined,
+            h: q.high ?? undefined,
+            l: q.low ?? undefined,
+            v: q.volume ?? undefined,
+          }));
+      },
+      [],
+    );
+    return { points, range: data.range, symbol: data.symbol };
+  });
+
+// ---- Historical price on a specific date ---------------------------------
+export const getYahooHistoricalPrice = createServerFn({ method: "POST" })
+  .inputValidator((input: { symbol: string; date: string }) => {
+    const s = normSym(input?.symbol);
+    if (!s) throw new Error("Invalid symbol");
+    const d = typeof input?.date === "string" ? input.date.slice(0, 10) : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error("Invalid date");
+    return { symbol: s, date: d };
+  })
+  .handler(async ({ data }) => {
+    const key = `yf:hist:${data.symbol}:${data.date}`;
+    const price = await cached<number | null>(
+      key,
+      24 * 60 * 60_000,
+      async () => {
+        const target = new Date(`${data.date}T00:00:00Z`);
+        // Window: 7 days before to 3 days after the target to handle weekends/holidays
+        const p1 = new Date(target.getTime() - 7 * 24 * 60 * 60_000);
+        const p2 = new Date(Math.min(Date.now(), target.getTime() + 3 * 24 * 60 * 60_000));
+        const res = (await yahooFinance.chart(data.symbol, {
+          period1: p1,
+          period2: p2,
+          interval: "1d",
+        })) as { quotes?: Array<{ date: Date; close: number | null }> };
+        const quotes = (res.quotes ?? []).filter((q) => q.close != null);
+        if (!quotes.length) return null;
+        // Pick the quote with date closest to (and not after) target
+        const targetMs = target.getTime();
+        let best: { date: Date; close: number | null } | null = null;
+        for (const q of quotes) {
+          const qd = q.date instanceof Date ? q.date : new Date(q.date);
+          if (qd.getTime() <= targetMs + 24 * 60 * 60_000) {
+            if (!best || qd.getTime() > (best.date instanceof Date ? best.date.getTime() : new Date(best.date).getTime())) {
+              best = q;
+            }
+          }
+        }
+        const pick = best ?? quotes[quotes.length - 1];
+        return typeof pick.close === "number" ? pick.close : null;
+      },
+      null,
+    );
+    return { symbol: data.symbol, date: data.date, price };
+  });
+
 // ---- Server function: batch fundamentals (capped at 25) ------------------
 export const getYahooFundamentalsBatch = createServerFn({ method: "POST" })
   .inputValidator((input: { symbols: string[] }) => {
