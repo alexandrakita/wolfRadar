@@ -115,6 +115,11 @@ function StockAnalysis() {
             </div>
           </section>
 
+          {/* Price chart with timeframe toggle */}
+          <section className="mt-6">
+            <PriceChart symbol={sym} />
+          </section>
+
           {/* Quote stats */}
           <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="Open" value={fmt(quote?.o)} />
