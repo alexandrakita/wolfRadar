@@ -8,6 +8,7 @@ import { DashboardHeader } from "@/components/dashboard-header";
 import { getStockBundle } from "@/lib/quotes.functions";
 import { STOCK_UNIVERSE } from "@/lib/stock-universe";
 import { FavoriteButton } from "@/components/favorite-button";
+import { PriceChart } from "@/components/price-chart";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/stock/$symbol")({
