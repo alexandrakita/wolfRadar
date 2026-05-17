@@ -139,17 +139,21 @@ function PortfolioPage() {
     return { totalValue, totalCost, totalPL, totalPLPct, dayPL, dayPLPct };
   }, [rows]);
 
-  // Synthesize a simple performance series from current totals so the chart
-  // shape stays but reflects the user's real portfolio value.
+  // Synthesize a 12-month performance series ending at the current month so
+  // the chart timeline reflects "today" on the right edge.
   const performanceData = useMemo(() => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    const points: { d: string; v: number }[] = [];
     const end = totals.totalValue;
     const start = totals.totalCost > 0 ? totals.totalCost : end;
-    return months.map((d, i) => {
-      const t = i / (months.length - 1);
-      const v = start + (end - start) * t;
-      return { d, v };
-    });
+    const n = 12;
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const t = (n - 1 - i) / (n - 1);
+      points.push({ d: monthNames[d.getMonth()], v: start + (end - start) * t });
+    }
+    return points;
   }, [totals]);
 
   const stats = [
