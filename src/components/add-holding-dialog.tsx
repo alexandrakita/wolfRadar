@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, Search } from "lucide-react";
+import { format } from "date-fns";
+import { CalendarIcon, Check, Loader2, Search } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { STOCK_UNIVERSE } from "@/lib/stock-universe";
 import { fetchQuotes } from "@/lib/finnhub";
+import { getYahooHistoricalPrice } from "@/lib/yahoo.functions";
 import { cn } from "@/lib/utils";
 import type { Holding } from "@/hooks/use-portfolio";
 
@@ -34,14 +39,25 @@ function searchUniverse(q: string): Match[] {
   return [...starts, ...contains].slice(0, 8);
 }
 
+function toISO(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+function isToday(d: Date) {
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
 export function AddHoldingDialog({ open, onOpenChange, onSubmit, initial }: Props) {
+  const fetchHistorical = useServerFn(getYahooHistoricalPrice);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Match | null>(null);
   const [showList, setShowList] = useState(false);
   const [shares, setShares] = useState("");
   const [avgCost, setAvgCost] = useState("");
-  const [priceMode, setPriceMode] = useState<"current" | "custom">("current");
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [priceMode, setPriceMode] = useState<"date" | "custom">("date");
+  const [purchaseDate, setPurchaseDate] = useState<Date>(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePrice, setDatePrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reqId = useRef(0);
@@ -54,44 +70,49 @@ export function AddHoldingDialog({ open, onOpenChange, onSubmit, initial }: Prop
       setQuery(`${initial.sym} — ${match?.name ?? initial.sym}`);
       setShares(String(initial.shares));
       setAvgCost(String(initial.avgCost));
+      setPurchaseDate(initial.purchaseDate ? new Date(`${initial.purchaseDate}T00:00:00`) : new Date());
       setPriceMode("custom");
     } else {
       setSelected(null);
       setQuery("");
       setShares("");
       setAvgCost("");
-      setPriceMode("current");
+      setPurchaseDate(new Date());
+      setPriceMode("date");
     }
-    setCurrentPrice(null);
+    setDatePrice(null);
     setShowList(false);
     setErr(null);
   }, [open, initial]);
 
-  // Fetch live price whenever selected ticker changes
+  // Fetch price for selected ticker + date (live quote if today, else historical)
   useEffect(() => {
     if (!selected) {
-      setCurrentPrice(null);
+      setDatePrice(null);
       return;
     }
     const id = ++reqId.current;
     setPriceLoading(true);
-    fetchQuotes([selected.sym])
-      .then((q) => {
+    const sym = selected.sym;
+    const promise = isToday(purchaseDate)
+      ? fetchQuotes([sym]).then((q) => q[sym]?.c ?? null)
+      : fetchHistorical({ data: { symbol: sym, date: toISO(purchaseDate) } }).then((r) => r.price ?? null);
+    promise
+      .then((p) => {
         if (id !== reqId.current) return;
-        const p = q[selected.sym]?.c ?? null;
-        setCurrentPrice(p && p > 0 ? p : null);
-        if (priceMode === "current" && p && p > 0) setAvgCost(p.toFixed(2));
+        const v = p && p > 0 ? p : null;
+        setDatePrice(v);
+        if (priceMode === "date" && v) setAvgCost(v.toFixed(2));
       })
       .finally(() => {
         if (id === reqId.current) setPriceLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, purchaseDate]);
 
-  // When toggling to "current", sync avgCost to current price
   useEffect(() => {
-    if (priceMode === "current" && currentPrice) setAvgCost(currentPrice.toFixed(2));
-  }, [priceMode, currentPrice]);
+    if (priceMode === "date" && datePrice) setAvgCost(datePrice.toFixed(2));
+  }, [priceMode, datePrice]);
 
   const matches = useMemo(() => (selected ? [] : searchUniverse(query)), [query, selected]);
 
@@ -116,9 +137,15 @@ export function AddHoldingDialog({ open, onOpenChange, onSubmit, initial }: Prop
     if (!sym || !/^[A-Z.\-]{1,10}$/.test(sym)) return setErr("Pick a valid ticker from the list");
     if (!Number.isFinite(sh) || sh <= 0) return setErr("Shares must be > 0");
     if (!Number.isFinite(ac) || ac <= 0) return setErr("Buy price must be > 0");
-    onSubmit({ sym, shares: sh, avgCost: ac });
+    onSubmit({ sym, shares: sh, avgCost: ac, purchaseDate: toISO(purchaseDate) });
     onOpenChange(false);
   };
+
+  const today = useMemo(() => {
+    const t = new Date();
+    t.setHours(23, 59, 59, 999);
+    return t;
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,18 +188,6 @@ export function AddHoldingDialog({ open, onOpenChange, onSubmit, initial }: Prop
                 </div>
               ) : null}
             </div>
-            {selected ? (
-              <p className="text-xs text-muted-foreground">
-                Current market price:{" "}
-                {priceLoading ? (
-                  <Loader2 className="inline h-3 w-3 animate-spin" />
-                ) : currentPrice ? (
-                  <span className="font-medium text-foreground">${currentPrice.toFixed(2)}</span>
-                ) : (
-                  <span>unavailable</span>
-                )}
-              </p>
-            ) : null}
           </div>
 
           {/* Shares */}
@@ -189,28 +204,71 @@ export function AddHoldingDialog({ open, onOpenChange, onSubmit, initial }: Prop
             />
           </div>
 
+          {/* Purchase date */}
+          <div className="space-y-2">
+            <Label>Purchase date</Label>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(purchaseDate, "PPP")}
+                  {isToday(purchaseDate) ? (
+                    <span className="ml-auto text-xs text-muted-foreground">Today</span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={purchaseDate}
+                  onSelect={(d) => {
+                    if (d) {
+                      setPurchaseDate(d);
+                      setDatePickerOpen(false);
+                    }
+                  }}
+                  disabled={(d) => d > today || d < new Date("2000-01-01")}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
           {/* Buy price mode */}
           <div className="space-y-2">
             <Label>Buy price</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setPriceMode("current")}
-                disabled={!currentPrice}
+                onClick={() => setPriceMode("date")}
+                disabled={!datePrice && !priceLoading}
                 className={cn(
                   "rounded-md border px-3 py-2 text-left text-sm transition",
-                  priceMode === "current"
+                  priceMode === "date"
                     ? "border-primary/60 bg-primary/10"
                     : "border-border/60 hover:border-primary/30",
-                  !currentPrice && "opacity-50",
+                  !datePrice && !priceLoading && "opacity-50",
                 )}
               >
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Use current price</span>
-                  {priceMode === "current" && currentPrice ? <Check className="h-3 w-3 text-accent" /> : null}
+                  <span>{isToday(purchaseDate) ? "Current price" : "Price on date"}</span>
+                  {priceMode === "date" && datePrice ? <Check className="h-3 w-3 text-accent" /> : null}
                 </div>
                 <div className="mt-0.5 font-medium tabular-nums">
-                  {currentPrice ? `$${currentPrice.toFixed(2)}` : "—"}
+                  {priceLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : datePrice ? (
+                    `$${datePrice.toFixed(2)}`
+                  ) : selected ? (
+                    "unavailable"
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </button>
               <button
