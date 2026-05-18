@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/alexandrakita/stocky-charts-hub/frontend/src/app/portfolio/layout.js"],"sourcesContent":["export const metadata = {\n  title: \"Portfolio\",\n  description: \"Track your portfolio holdings and performance.\",\n};\n\nexport default function PortfolioLayout({ children }) {\n  return children;\n}\n"],"names":[],"mappings":";;;;;;AAAO,MAAM,WAAW;IACtB,OAAO;IACP,aAAa;AACf;AAEe,SAAS,gBAAgB,EAAE,QAAQ,EAAE;IAClD,OAAO;AACT","debugId":null}}]
-}

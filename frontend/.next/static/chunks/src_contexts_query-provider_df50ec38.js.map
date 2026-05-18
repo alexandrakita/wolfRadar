@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/alexandrakita/stocky-charts-hub/frontend/src/contexts/query-provider.js"],"sourcesContent":["\"use client\";\n\nimport { QueryClient, QueryClientProvider } from \"@tanstack/react-query\";\nimport { useState } from \"react\";\n\nexport function QueryProvider({ children }) {\n  const [queryClient] = useState(\n    () =>\n      new QueryClient({\n        defaultOptions: {\n          queries: { staleTime: 60 * 1000 },\n        },\n      }),\n  );\n\n  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;\n}\n"],"names":[],"mappings":";;;;;AAEA;AAAA;AACA;;;AAHA;;;AAKO,SAAS,cAAc,KAAY;QAAZ,EAAE,QAAQ,EAAE,GAAZ;;IAC5B,MAAM,CAAC,YAAY,GAAG,IAAA,yKAAQ;kCAC5B,IACE,IAAI,+LAAW,CAAC;gBACd,gBAAgB;oBACd,SAAS;wBAAE,WAAW,KAAK;oBAAK;gBAClC;YACF;;IAGJ,qBAAO,6LAAC,gNAAmB;QAAC,QAAQ;kBAAc;;;;;;AACpD;GAXgB;KAAA","debugId":null}}]
-}

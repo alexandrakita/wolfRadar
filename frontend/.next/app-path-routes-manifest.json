@@ -1,9 +1,0 @@
-{
-  "/_not-found/page": "/_not-found",
-  "/stock/[symbol]/page": "/stock/[symbol]",
-  "/login/page": "/login",
-  "/screener/page": "/screener",
-  "/portfolio/page": "/portfolio",
-  "/watchlist/page": "/watchlist",
-  "/(home)/page": "/"
-}

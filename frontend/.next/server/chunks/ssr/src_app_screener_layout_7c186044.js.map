@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/alexandrakita/stocky-charts-hub/frontend/src/app/screener/layout.js"],"sourcesContent":["import { Suspense } from \"react\";\n\nexport const metadata = {\n  title: \"Screener\",\n  description:\n    \"Stocks and ETFs screener with deep filters: price, market cap, P/E, sector, dividend yield, and more.\",\n};\n\nexport default function ScreenerLayout({ children }) {\n  return <Suspense fallback={null}>{children}</Suspense>;\n}\n"],"names":[],"mappings":";;;;;;;AAAA;;;AAEO,MAAM,WAAW;IACtB,OAAO;IACP,aACE;AACJ;AAEe,SAAS,eAAe,EAAE,QAAQ,EAAE;IACjD,qBAAO,8OAAC,iNAAQ;QAAC,UAAU;kBAAO;;;;;;AACpC","debugId":null}}]
-}
