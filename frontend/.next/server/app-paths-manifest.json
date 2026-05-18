@@ -1,0 +1,7 @@
+{
+  "/(home)/page": "app/(home)/page.js",
+  "/portfolio/page": "app/portfolio/page.js",
+  "/screener/page": "app/screener/page.js",
+  "/stock/[symbol]/page": "app/stock/[symbol]/page.js",
+  "/watchlist/page": "app/watchlist/page.js"
+}

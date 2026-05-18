@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/alexandrakita/stocky-charts-hub/frontend/src/app/stock/%5Bsymbol%5D/layout.js"],"sourcesContent":["export async function generateMetadata({ params }) {\n  const { symbol } = await params;\n  const sym = decodeURIComponent(symbol || \"\").toUpperCase();\n  return {\n    title: sym,\n    description: `Live quote, fundamentals, analyst ratings and news for ${sym}.`,\n  };\n}\n\nexport default function StockSymbolLayout({ children }) {\n  return children;\n}\n"],"names":[],"mappings":";;;;;;AAAO,eAAe,iBAAiB,EAAE,MAAM,EAAE;IAC/C,MAAM,EAAE,MAAM,EAAE,GAAG,MAAM;IACzB,MAAM,MAAM,mBAAmB,UAAU,IAAI,WAAW;IACxD,OAAO;QACL,OAAO;QACP,aAAa,CAAC,uDAAuD,EAAE,IAAI,CAAC,CAAC;IAC/E;AACF;AAEe,SAAS,kBAAkB,EAAE,QAAQ,EAAE;IACpD,OAAO;AACT","debugId":null}}]
+}

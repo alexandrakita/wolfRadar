@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/alexandrakita/stocky-charts-hub/frontend/src/app/watchlist/layout.js"],"sourcesContent":["export const metadata = {\n  title: \"Watchlist\",\n  description: \"Your personal stock watchlist with live prices.\",\n};\n\nexport default function WatchlistLayout({ children }) {\n  return children;\n}\n"],"names":[],"mappings":";;;;;;AAAO,MAAM,WAAW;IACtB,OAAO;IACP,aAAa;AACf;AAEe,SAAS,gBAAgB,EAAE,QAAQ,EAAE;IAClD,OAAO;AACT","debugId":null}}]
+}
