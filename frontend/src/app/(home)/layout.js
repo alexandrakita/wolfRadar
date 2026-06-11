@@ -1,7 +1,7 @@
 export const metadata = {
-  title: "Dashboard",
+  title: "Dashboard — WolfRadar",
   description:
-    "Your stock screener overview: market metrics, performance, and trending tickers.",
+    "Customizable command center: market overview, movers, portfolio, news, and Wolf Radar signals.",
 };
 
 export default function HomeLayout({ children }) {

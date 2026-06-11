@@ -5,6 +5,7 @@ import {
   Bell,
   Wallet,
   Settings,
+  Zap,
 } from "lucide-react";
 
 export const SIDEBAR_NAV_ITEMS = [
@@ -12,6 +13,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { title: "Screener", url: "/screener", icon: LineChart },
   { title: "Watchlist", url: "/watchlist", icon: Star },
   { title: "Portfolio", url: "/portfolio", icon: Wallet },
-  { title: "Alerts", url: "#", icon: Bell },
+  { title: "Wolf Signals", url: "/wolf-signals", icon: Zap },
+  { title: "Alerts", url: "/alerts", icon: Bell },
   { title: "Settings", url: "#", icon: Settings },
 ];

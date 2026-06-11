@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { STOCK_UNIVERSE } from "@/data/stock-universe";
 import { fetchQuotes } from "@/services/finnhub";
 import { fetchYahooHistorical } from "@/services/api";
+import { TOAST } from "@/constants/toast-messages";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 function searchUniverse(q) {
   const s = q.trim().toUpperCase();
@@ -134,6 +136,7 @@ export function AddHoldingDialog({
       avgCost: ac,
       purchaseDate: toISO(purchaseDate)
     });
+    toast.success(initial ? TOAST.holdingUpdated(sym) : TOAST.holdingAdded(sym));
     onOpenChange(false);
   };
   const today = useMemo(() => {

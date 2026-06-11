@@ -7,6 +7,8 @@ import {
   getStockBundle,
   getYahooChart,
   getYahooHistoricalPrice,
+  getMarketMovers,
+  getAggregatedNews,
   normSym,
   RANGE_CFG,
 } from "../lib/yahoo.js";
@@ -53,6 +55,22 @@ router.post(
     const d = typeof req.body?.date === "string" ? req.body.date.slice(0, 10) : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new HttpError(400, "Invalid date");
     const payload = await getYahooHistoricalPrice(symbol, d);
+    res.json(payload);
+  }),
+);
+
+router.post(
+  "/movers",
+  asyncRoute(async (req, res) => {
+    const payload = await getMarketMovers(req.body ?? {});
+    res.json(payload);
+  }),
+);
+
+router.post(
+  "/news",
+  asyncRoute(async (req, res) => {
+    const payload = await getAggregatedNews(req.body ?? {});
     res.json(payload);
   }),
 );

@@ -20,12 +20,14 @@ const TTL = {
   neg: 2 * 60_000,
 };
 
-const SYM_RE = /^[A-Z0-9.\-]{1,12}$/;
+const STOCK_SYM_RE = /^[A-Z0-9.\-]{1,12}$/;
+const INDEX_SYM_RE = /^\^[A-Z0-9.\-]{1,11}$/;
 
 export function normSym(s) {
   if (typeof s !== "string") return null;
   const v = s.trim().toUpperCase();
-  return SYM_RE.test(v) ? v : null;
+  if (STOCK_SYM_RE.test(v) || INDEX_SYM_RE.test(v)) return v;
+  return null;
 }
 
 export function sanitizeSymbols(raw) {
@@ -643,4 +645,95 @@ export async function getStockBundle(handlerInput) {
     insiderSentiment: [],
     fundamentals: null,
   };
+}
+
+const MOVER_SCREEN = {
+  gainers: "day_gainers",
+  losers: "day_losers",
+  active: "most_actives",
+  volume: "most_actives",
+  "rel-volume": "most_actives",
+};
+
+/** @returns {Promise<{ mode: string, rows: object[] }>} */
+export async function getMarketMovers(handlerInput) {
+  const modeRaw = typeof handlerInput.mode === "string" ? handlerInput.mode : "gainers";
+  const mode = MOVER_SCREEN[modeRaw] ? modeRaw : "gainers";
+  const count = Math.min(Math.max(Number(handlerInput.count) || 12, 5), 25);
+  const scrIds = MOVER_SCREEN[mode];
+
+  return cached(`movers:${mode}:${count}`, TTL.quote, async () => {
+    try {
+      const result = await yahooFinance.screener({ scrIds, count: 25 }, { validateResult: false });
+      const quotes = /** @type {unknown[]} */ (result?.quotes ?? []);
+      let rows = quotes
+        .map((row) => {
+          const mapped = yahooRowToMarketQuote(row);
+          if (!mapped) return null;
+          const sym =
+            row && typeof row === "object" && "symbol" in row
+              ? String(/** @type {{ symbol: string }} */ (row).symbol).toUpperCase()
+              : null;
+          if (!sym) return null;
+          return {
+            sym,
+            name:
+              typeof mapped.longName === "string"
+                ? mapped.longName
+                : sym,
+            price: mapped.c,
+            change: mapped.d,
+            changePct: mapped.dp,
+            volume: mapped.vol,
+            relVol: mapped.relVol,
+            mktCap: mapped.mktCap,
+          };
+        })
+        .filter(Boolean);
+
+      if (mode === "volume") {
+        rows.sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0));
+      } else if (mode === "rel-volume") {
+        rows.sort((a, b) => (b.relVol ?? 0) - (a.relVol ?? 0));
+      } else if (mode === "losers") {
+        rows.sort((a, b) => a.changePct - b.changePct);
+      } else if (mode === "gainers") {
+        rows.sort((a, b) => b.changePct - a.changePct);
+      }
+
+      return { mode, rows: rows.slice(0, count) };
+    } catch (e) {
+      console.error("[yahoo] movers failed:", /** @type {Error} */ (e).message);
+      return { mode, rows: [] };
+    }
+  }, { mode, rows: [] });
+}
+
+/** @returns {Promise<{ items: object[] }>} */
+export async function getAggregatedNews(handlerInput) {
+  const symbols = sanitizeSymbols(handlerInput.symbols ?? []);
+  const limit = Math.min(Math.max(Number(handlerInput.limit) || 15, 5), 30);
+  const syms = symbols.length ? symbols : ["AAPL", "NVDA", "MSFT", "TSLA", "AMZN"];
+  const key = `news:${syms.join(",")}:${limit}`;
+
+  return cached(key, TTL.bundle, async () => {
+    /** @type {object[]} */
+    const items = [];
+    const slice = syms.slice(0, 8);
+    const bundles = await Promise.allSettled(slice.map((sym) => loadStockBundle(sym)));
+    for (let i = 0; i < bundles.length; i++) {
+      const sym = slice[i];
+      const res = bundles[i];
+      if (res.status !== "fulfilled" || !res.value?.news) continue;
+      for (const n of res.value.news) {
+        items.push({
+          ...n,
+          sym,
+          id: `${sym}-${n.id ?? items.length}`,
+        });
+      }
+    }
+    items.sort((a, b) => (Number(b.datetime) || 0) - (Number(a.datetime) || 0));
+    return { items: items.slice(0, limit) };
+  }, { items: [] });
 }

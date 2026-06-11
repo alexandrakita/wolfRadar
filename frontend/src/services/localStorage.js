@@ -5,12 +5,16 @@
 export const STORAGE_KEYS = {
   WATCHLIST: "stockycharts:watchlist",
   PORTFOLIO: "stockycharts:portfolio",
+  DASHBOARDS: "stockycharts:dashboards",
+  ALERTS: "stockycharts:alerts",
 };
 
 /** Same-window sync (storage event does not fire in the tab that wrote). */
 export const SYNC_EVENTS = {
   WATCHLIST: "stockycharts:watchlist-change",
   PORTFOLIO: "stockycharts:portfolio-change",
+  DASHBOARDS: "stockycharts:dashboards-change",
+  ALERTS: "stockycharts:alerts-change",
 };
 
 const LEGACY_KEYS = {
@@ -186,6 +190,65 @@ class LocalStorageService {
     const s = sym.toUpperCase();
     const cur = this.getPortfolio().filter((x) => x.sym !== s);
     this.setPortfolio(cur);
+  }
+
+  /** @returns {{ version: number, activeId: string | null, dashboards: object[] }} */
+  getDashboardsState() {
+    if (!isBrowser()) return { version: 1, activeId: null, dashboards: [] };
+    const row = this.get(STORAGE_KEYS.DASHBOARDS);
+    if (!row || typeof row !== "object") return { version: 1, activeId: null, dashboards: [] };
+    const dashboards = Array.isArray(row.dashboards)
+      ? row.dashboards.filter((d) => d && typeof d.id === "string" && typeof d.name === "string")
+      : [];
+    const activeId =
+      typeof row.activeId === "string" && dashboards.some((d) => d.id === row.activeId)
+        ? row.activeId
+        : dashboards[0]?.id ?? null;
+    return {
+      version: 1,
+      activeId,
+      dashboards: dashboards.map((d) => ({
+        id: d.id,
+        name: d.name,
+        widgets: Array.isArray(d.widgets)
+          ? d.widgets.filter(
+              (w) =>
+                w &&
+                typeof w.id === "string" &&
+                typeof w.type === "string" &&
+                w.type !== "alerts",
+            )
+          : [],
+      })),
+    };
+  }
+
+  /** @param {{ version: number, activeId: string | null, dashboards: object[] }} state */
+  setDashboardsState(state) {
+    const dashboards = (state.dashboards ?? []).slice(0, 3).map((d) => ({
+      id: d.id,
+      name: d.name,
+      widgets: Array.isArray(d.widgets) ? d.widgets : [],
+    }));
+    const activeId =
+      state.activeId && dashboards.some((d) => d.id === state.activeId)
+        ? state.activeId
+        : dashboards[0]?.id ?? null;
+    this.set(STORAGE_KEYS.DASHBOARDS, { version: 1, activeId, dashboards });
+    this._emit(SYNC_EVENTS.DASHBOARDS);
+  }
+
+  /** @returns {object[]} */
+  getAlerts() {
+    if (!isBrowser()) return [];
+    const row = this.get(STORAGE_KEYS.ALERTS);
+    return Array.isArray(row) ? row : [];
+  }
+
+  /** @param {object[]} rows */
+  setAlerts(rows) {
+    this.set(STORAGE_KEYS.ALERTS, Array.isArray(rows) ? rows : []);
+    this._emit(SYNC_EVENTS.ALERTS);
   }
 }
 

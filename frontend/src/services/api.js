@@ -40,3 +40,11 @@ export function fetchYahooChart(symbol, range) {
 export function fetchYahooHistorical(symbol, date) {
   return apiPost("/yahoo/historical", { symbol, date });
 }
+
+export function fetchMarketMovers(mode, count = 12) {
+  return apiPost("/movers", { mode, count });
+}
+
+export function fetchMarketNews(symbols, limit = 15) {
+  return apiPost("/news", { symbols, limit });
+}

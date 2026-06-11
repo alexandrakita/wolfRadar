@@ -9,24 +9,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useQuotes } from "@/hooks/use-quotes";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
   Table,
   TableBody,
   TableCell,
@@ -34,15 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SlidersHorizontal, X, Search } from "lucide-react";
+import { Activity, TrendingUp, Layers } from "lucide-react";
 import { FavoriteButton } from "@/components/favorite-button";
 import { StockAvatar } from "@/components/stock-avatar";
 import {
   buildScreenerSearchParams,
   DEFAULT_SCREENER_LIMIT,
   parseScreenerSearchParams,
-  SCREENER_PAGE_LIMIT_OPTIONS,
 } from "@/utils/screener-search-params";
+import { SCREENER_TABS } from "@/constants/screener";
 import {
   MAX_STOCKS_FOR_MARKET_FILTER,
   QUOTE_BUFFER,
@@ -62,11 +44,10 @@ import {
   passesStockMarketFilters,
 } from "@/utils/screener-table";
 import {
-  FilterField,
-  RangeFilter,
-  SelectFilter,
   SortIndicator,
 } from "./filter-widgets";
+import { MarketIndexesSection } from "./market-indexes-section";
+import { ScreenerFiltersBar } from "./screener-filters-bar";
 
 export default function Page() {
   const router = useRouter();
@@ -74,25 +55,28 @@ export default function Page() {
   const searchParams = useSearchParams();
   const searchParamsKey = searchParams.toString();
   const isUpdatingUrl = useRef(false);
+  const initialUrl = parseScreenerSearchParams(searchParams);
 
-  const [tab, setTab] = useState("stocks");
+  const [tab, setTab] = useState(initialUrl.tab);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const [draftStock, setDraftStock] = useState({});
-  const [appliedStock, setAppliedStock] = useState({});
-  const [draftEtf, setDraftEtf] = useState({});
-  const [appliedEtf, setAppliedEtf] = useState({});
+  const [draftStock, setDraftStock] = useState(initialUrl.appliedStock);
+  const [appliedStock, setAppliedStock] = useState(initialUrl.appliedStock);
+  const [draftEtf, setDraftEtf] = useState(initialUrl.appliedEtf);
+  const [appliedEtf, setAppliedEtf] = useState(initialUrl.appliedEtf);
 
-  const [quickSearch, setQuickSearch] = useState("");
-  const [searchForUrl, setSearchForUrl] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_SCREENER_LIMIT);
-  const [sortField, setSortField] = useState(null);
-  const [sortOrder, setSortOrder] = useState(null);
+  const [quickSearch, setQuickSearch] = useState(initialUrl.q);
+  const [searchForUrl, setSearchForUrl] = useState(initialUrl.q);
+  const [selectedIndex, setSelectedIndex] = useState(initialUrl.index);
+  const [page, setPage] = useState(initialUrl.page);
+  const [pageSize, setPageSize] = useState(initialUrl.limit);
+  const [sortField, setSortField] = useState(initialUrl.sortField);
+  const [sortOrder, setSortOrder] = useState(initialUrl.sortOrder);
 
   const urlStateRef = useRef({
     tab,
     searchForUrl,
+    selectedIndex,
     page,
     pageSize,
     sortField,
@@ -103,6 +87,7 @@ export default function Page() {
   urlStateRef.current = {
     tab,
     searchForUrl,
+    selectedIndex,
     page,
     pageSize,
     sortField,
@@ -120,6 +105,7 @@ export default function Page() {
     setTab(parsed.tab);
     setQuickSearch(parsed.q);
     setSearchForUrl(parsed.q);
+    setSelectedIndex(parsed.index);
     setPage(parsed.page);
     setPageSize(parsed.limit);
     setSortField(parsed.sortField);
@@ -141,6 +127,7 @@ export default function Page() {
       const params = buildScreenerSearchParams({
         tab: s.tab,
         q: s.searchForUrl,
+        index: s.selectedIndex,
         page: s.page,
         limit: s.pageSize,
         sortField: s.sortField,
@@ -164,6 +151,7 @@ export default function Page() {
   }, [
     tab,
     searchForUrl,
+    selectedIndex,
     page,
     pageSize,
     sortField,
@@ -176,14 +164,20 @@ export default function Page() {
 
   const handleTabChange = (value) => {
     setTab(value);
-    setQuickSearch("");
-    setSearchForUrl("");
     setPage(1);
     setSortField(null);
     setSortOrder(null);
+    if (value === SCREENER_TABS.INDEXES) {
+      setQuickSearch("");
+      setSearchForUrl("");
+      return;
+    }
+    setSelectedIndex("");
+    setQuickSearch("");
+    setSearchForUrl("");
   };
 
-  const isStocks = tab === "stocks";
+  const isStocks = tab === SCREENER_TABS.STOCKS;
   const draft = isStocks ? draftStock : draftEtf;
   const setDraft = isStocks ? setDraftStock : setDraftEtf;
   const applied = isStocks ? appliedStock : appliedEtf;
@@ -193,29 +187,25 @@ export default function Page() {
   const etfSymbols = useMemo(() => ETFS.map((e) => e.sym), []);
   const { quotes: etfQuotes, error: etfQuotesError } = useQuotes(etfSymbols);
 
-  const chips = useMemo(() => {
-    const labelOf = (k) => fields.find((f) => f.key === k)?.label ?? k;
-    return Object.entries(applied)
+  const stockChips = useMemo(() => {
+    const labelOf = (k) => STOCK_FILTERS.find((f) => f.key === k)?.label ?? k;
+    return Object.entries(appliedStock)
       .map(([k, v]) => ({
         key: k,
         text: formatChip(labelOf(k), v),
       }))
       .filter((c) => !!c.text);
-  }, [applied, fields]);
+  }, [appliedStock]);
 
-  const removeChip = (key) => {
-    setPage(1);
-    setApplied((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    setDraft((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  };
+  const etfChips = useMemo(() => {
+    const labelOf = (k) => ETF_FILTERS.find((f) => f.key === k)?.label ?? k;
+    return Object.entries(appliedEtf)
+      .map(([k, v]) => ({
+        key: k,
+        text: formatChip(labelOf(k), v),
+      }))
+      .filter((c) => !!c.text);
+  }, [appliedEtf]);
 
   const matchedStocks = useMemo(() => {
     const f = appliedStock;
@@ -379,6 +369,78 @@ export default function Page() {
   const rangeFrom = activeTotal === 0 ? 0 : (listPage - 1) * pageSize + 1;
   const rangeTo = Math.min(listPage * pageSize, activeTotal);
 
+  const filtersBarProps = {
+    quickSearch,
+    onQuickSearchChange: (v) => {
+      setQuickSearch(v);
+      setPage(1);
+    },
+    filtersOpen,
+    onFiltersOpenChange: setFiltersOpen,
+    onPageReset: () => setPage(1),
+    pageSize,
+    onPageSizeChange: (n) => {
+      setPageSize(n);
+      setPage(1);
+    },
+  };
+
+  const stockFiltersBarProps = {
+    ...filtersBarProps,
+    isStocks: true,
+    fields: STOCK_FILTERS,
+    draft: draftStock,
+    setDraft: setDraftStock,
+    applied: appliedStock,
+    setApplied: setAppliedStock,
+    chips: stockChips,
+    onRemoveChip: (key) => {
+      setPage(1);
+      setAppliedStock((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setDraftStock((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    onClearFilters: () => {
+      setAppliedStock({});
+      setPage(1);
+    },
+  };
+
+  const etfFiltersBarProps = {
+    ...filtersBarProps,
+    isStocks: false,
+    fields: ETF_FILTERS,
+    draft: draftEtf,
+    setDraft: setDraftEtf,
+    applied: appliedEtf,
+    setApplied: setAppliedEtf,
+    chips: etfChips,
+    onRemoveChip: (key) => {
+      setPage(1);
+      setAppliedEtf((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setDraftEtf((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    onClearFilters: () => {
+      setAppliedEtf({});
+      setPage(1);
+    },
+  };
+
   return (
     <DashboardPageShell>
           {(stockQuotesError || etfQuotesError) && (
@@ -390,173 +452,57 @@ export default function Page() {
               and set STOCKY_BACKEND_URL if the API is not on the default URL.
             </div>
           )}
-          {stockQuotesLoading && !stockQuotesError && isStocks && (
-            <div className="mb-3 text-xs text-muted-foreground">
+
+          <PageHeading
+            title="Screener"
+            description="Market indexes, stock filters, and ETF discovery — live data from Yahoo Finance."
+            className="mb-4"
+          />
+
+          <Tabs value={tab} onValueChange={handleTabChange} className="mt-2">
+            <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-secondary/60 p-1 sm:w-auto">
+              <TabsTrigger value={SCREENER_TABS.INDEXES} className="gap-2">
+                <Activity className="h-4 w-4" />
+                Market Indexes
+              </TabsTrigger>
+              <TabsTrigger value={SCREENER_TABS.STOCKS} className="gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Stocks
+              </TabsTrigger>
+              <TabsTrigger value={SCREENER_TABS.ETFS} className="gap-2">
+                <Layers className="h-4 w-4" />
+                ETFs
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={SCREENER_TABS.INDEXES} className="mt-0 space-y-0">
+              <MarketIndexesSection
+                selectedIndex={selectedIndex}
+                onSelectIndex={(sym) => {
+                  setSelectedIndex(sym);
+                  if (sym) setTab(SCREENER_TABS.INDEXES);
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value={SCREENER_TABS.STOCKS} className="mt-0 space-y-4">
+          {stockQuotesLoading && !stockQuotesError && (
+            <div className="text-xs text-muted-foreground">
               {stockMarketFiltersActive
                 ? `Loading live quotes to apply filters (first ${MAX_STOCKS_FOR_MARKET_FILTER} rows in sort order)…`
                 : "Loading live prices for this page…"}
             </div>
           )}
-          {stockMarketFiltersActive && !stockQuotesError && isStocks && (
-            <div className="mb-3 text-xs text-muted-foreground" role="status">
+          {stockMarketFiltersActive && !stockQuotesError && (
+            <div className="text-xs text-muted-foreground" role="status">
               Showing symbols that match filters using live Yahoo data only. Applies to up to{" "}
               <span className="font-medium tabular-nums">{MAX_STOCKS_FOR_MARKET_FILTER}</span>{" "}
               results in the current sort; narrow search to avoid missing symbols further down.
             </div>
           )}
 
-          <PageHeading
-            title="Stock Screener"
-            description="Filter the market by fundamentals, performance, and technicals. Live prices via Yahoo Finance."
-            className="mb-8"
-          />
+          <ScreenerFiltersBar {...stockFiltersBarProps} />
 
-          {/* Toolbar: dashboard-style search + filters + page size */}
-          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="relative min-w-[200px] flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-10 bg-background/80 pl-9"
-                placeholder="Search symbol or name…"
-                value={quickSearch}
-                onChange={(e) => {
-                  setQuickSearch(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Search table"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Dialog
-                open={filtersOpen}
-                onOpenChange={(o) => {
-                  setFiltersOpen(o);
-                  if (o) setDraft(applied);
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    className="gap-2 text-primary-foreground"
-                    style={{
-                      background: "var(--gradient-primary)",
-                      boxShadow: "var(--shadow-glow)",
-                    }}
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Filters
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  className="max-h-[85vh] max-w-3xl overflow-y-auto border-border/60"
-                  style={{ background: "var(--gradient-card)" }}
-                >
-                  <DialogHeader>
-                    <DialogTitle>{isStocks ? "Stock filters" : "ETF filters"}</DialogTitle>
-                    <DialogDescription>
-                      Narrow the universe. Empty fields mean &quot;any&quot;. Stocks: price / change /
-                      valuation filters use{" "}
-                      <span className="font-medium text-foreground">live quotes only</span>
-                      {" "}(no placeholder numbers).
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
-                    {fields.map((f) => (
-                      <FilterField key={f.key} label={f.label}>
-                        {f.type === "select" ? (
-                          <SelectFilter
-                            value={draft[f.key] ?? ""}
-                            onChange={(v) => setDraft({ ...draft, [f.key]: v })}
-                            options={f.options ?? []}
-                            placeholder={f.placeholder}
-                          />
-                        ) : (
-                          <RangeFilter
-                            value={draft[f.key]}
-                            onChange={(v) => setDraft({ ...draft, [f.key]: v })}
-                          />
-                        )}
-                      </FilterField>
-                    ))}
-                  </div>
-                  <DialogFooter className="gap-2">
-                    <Button variant="ghost" onClick={() => setDraft({})}>
-                      Reset
-                    </Button>
-                    <Button
-                      className="text-primary-foreground"
-                      style={{ background: "var(--gradient-primary)" }}
-                      onClick={() => {
-                        setApplied(draft);
-                        setFiltersOpen(false);
-                        setPage(1);
-                      }}
-                    >
-                      Apply filters
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v));
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="h-10 w-[130px] bg-background/80">
-                  <SelectValue placeholder="Rows" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCREENER_PAGE_LIMIT_OPTIONS.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n} / page
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {chips.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {chips.map((c) => (
-                <Badge
-                  key={c.key}
-                  variant="secondary"
-                  className="gap-1 rounded-full bg-secondary/60 px-3 py-1 text-xs"
-                >
-                  {c.text}
-                  <button
-                    type="button"
-                    onClick={() => removeChip(c.key)}
-                    className="ml-1 rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-                    aria-label={`Remove ${c.text}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setApplied({});
-                  setPage(1);
-                }}
-                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                Clear all
-              </button>
-            </div>
-          )}
-
-          <Tabs value={tab} onValueChange={handleTabChange} className="mt-6">
-            <TabsList className="bg-secondary/60">
-              <TabsTrigger value="stocks">Stocks</TabsTrigger>
-              <TabsTrigger value="etfs">ETFs</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="stocks" className="mt-4 space-y-0">
               <div
                 className="overflow-hidden rounded-2xl border border-border/60"
                 style={{
@@ -713,7 +659,9 @@ export default function Page() {
               </div>
             </TabsContent>
 
-            <TabsContent value="etfs" className="mt-4 space-y-0">
+            <TabsContent value={SCREENER_TABS.ETFS} className="mt-0 space-y-4">
+              <ScreenerFiltersBar {...etfFiltersBarProps} />
+
               <div
                 className="overflow-hidden rounded-2xl border border-border/60"
                 style={{

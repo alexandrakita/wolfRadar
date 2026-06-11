@@ -4,16 +4,19 @@ import {
   SCREENER_PAGE_LIMIT_OPTIONS,
   DEFAULT_SCREENER_LIMIT,
   DEFAULT_SCREENER_TAB,
+  SCREENER_TABS,
   STOCK_SORT_KEYS,
   ETF_SORT_KEYS,
   STOCK_FILTER_KEYS,
   ETF_FILTER_KEYS,
 } from "@/constants/screener";
+import { isMarketIndex } from "@/constants/market-indexes";
 
 export {
   SCREENER_PAGE_LIMIT_OPTIONS,
   DEFAULT_SCREENER_LIMIT,
   DEFAULT_SCREENER_TAB,
+  SCREENER_TABS,
   STOCK_SORT_KEYS,
   ETF_SORT_KEYS,
 } from "@/constants/screener";
@@ -47,7 +50,14 @@ export function parseScreenerSearchParams(source) {
       : source;
 
   const tabRaw = searchParams.get("tab");
-  const tab = tabRaw === "etfs" ? "etfs" : DEFAULT_SCREENER_TAB;
+  const indexRaw = searchParams.get("index") ?? "";
+  const index = isMarketIndex(indexRaw) ? indexRaw.trim().toUpperCase() : "";
+
+  let tab = DEFAULT_SCREENER_TAB;
+  if (tabRaw === SCREENER_TABS.ETFS) tab = SCREENER_TABS.ETFS;
+  else if (tabRaw === SCREENER_TABS.INDEXES) tab = SCREENER_TABS.INDEXES;
+  else if (tabRaw === SCREENER_TABS.STOCKS) tab = SCREENER_TABS.STOCKS;
+  else if (index) tab = SCREENER_TABS.INDEXES;
 
   const q = searchParams.get("q") ?? "";
 
@@ -64,7 +74,12 @@ export function parseScreenerSearchParams(source) {
   const dirRaw = searchParams.get("dir");
   let sortField = null;
   let sortOrder = null;
-  const allowedSort = tab === "stocks" ? STOCK_SORT_KEYS : ETF_SORT_KEYS;
+  const allowedSort =
+    tab === SCREENER_TABS.ETFS
+      ? ETF_SORT_KEYS
+      : tab === SCREENER_TABS.STOCKS
+        ? STOCK_SORT_KEYS
+        : new Set();
   if (
     sortRaw &&
     allowedSort.has(sortRaw) &&
@@ -96,6 +111,7 @@ export function parseScreenerSearchParams(source) {
   return {
     tab,
     q,
+    index,
     page,
     limit,
     sortField,
@@ -109,6 +125,7 @@ export function parseScreenerSearchParams(source) {
  * @param {{
  *   tab: string,
  *   q: string,
+ *   index: string,
  *   page: number,
  *   limit: number,
  *   sortField: string | null,
@@ -121,6 +138,7 @@ export function buildScreenerSearchParams(state) {
   const {
     tab,
     q,
+    index,
     page,
     limit,
     sortField,
@@ -135,6 +153,9 @@ export function buildScreenerSearchParams(state) {
 
   const trimmed = typeof q === "string" ? q.trim() : "";
   if (trimmed) params.set("q", trimmed);
+
+  const indexSym = typeof index === "string" ? index.trim().toUpperCase() : "";
+  if (indexSym && isMarketIndex(indexSym)) params.set("index", indexSym);
 
   if (page !== 1) params.set("page", String(page));
 
