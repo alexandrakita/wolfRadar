@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
+import { WolfHeadIcon } from "@/icons/wolf-head-icon";
 import { PanelSurface } from "@/components/panel-surface";
 
 export function WatchlistEmptyState() {
   return (
     <PanelSurface className="p-10 text-center">
-      <Star className="mx-auto h-10 w-10 text-muted-foreground/50" />
+      <WolfHeadIcon muted className="mx-auto h-10 w-10" />
       <h2 className="mt-3 text-lg font-semibold">Your watchlist is empty</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Open the screener and tap the star next to any stock to add it here.
+        Open the screener and tap the wolf icon next to any stock to add it here.
       </p>
       <Link
         href="/screener"

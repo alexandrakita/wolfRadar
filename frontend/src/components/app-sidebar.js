@@ -4,8 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, LogOut, X } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { SIDEBAR_NAV_ITEMS } from "@/constants/navigation";
+import { WolfHeadIcon } from "@/icons/wolf-head-icon";
 import { cn } from "@/lib/utils";
+
+function NavItemIcon({ item, active }) {
+  if (item.icon === WolfHeadIcon) {
+    return (
+      <WolfHeadIcon
+        className="h-4 w-4 shrink-0 scale-[1.55]"
+        onPrimary={active}
+        muted={!active}
+      />
+    );
+  }
+
+  const Icon = item.icon;
+  return <Icon className="h-4 w-4 shrink-0" />;
+}
 
 function NavItems({ pathname, collapsed, onNavigate }) {
   return SIDEBAR_NAV_ITEMS.map((item) => {
@@ -26,10 +43,8 @@ function NavItems({ pathname, collapsed, onNavigate }) {
         {...linkProps}
         {...(isInternal && onNavigate ? { onClick: onNavigate } : {})}
         className={cn(
-          "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-          active
-            ? "text-primary-foreground"
-            : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+          "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition",
+          active ? "rounded-full text-primary-foreground" : "rounded-xl text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
         )}
         style={
           active
@@ -40,7 +55,7 @@ function NavItems({ pathname, collapsed, onNavigate }) {
             : undefined
         }
       >
-        <item.icon className="h-4 w-4 shrink-0" />
+        <NavItemIcon item={item} active={active} />
         {!collapsed && (
           <span className="truncate">{item.title}</span>
         )}
@@ -103,13 +118,7 @@ export function AppSidebar({
                 onClick={closeMobile}
                 className="flex flex-1 items-center gap-2 overflow-hidden min-w-0"
               >
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-primary-foreground"
-                  style={{ background: "var(--gradient-primary)" }}
-                  aria-hidden
-                >
-                  WR
-                </div>
+                <BrandLogo size="md" />
                 <span className="truncate text-lg font-semibold tracking-tight">
                   Wolf<span className="text-accent">Radar</span>
                 </span>
@@ -145,13 +154,7 @@ export function AppSidebar({
       >
         <div className="flex items-center justify-between gap-2 px-4 py-5">
           <Link href="/" className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-primary-foreground"
-              style={{ background: "var(--gradient-primary)" }}
-              aria-hidden
-            >
-              WR
-            </div>
+            <BrandLogo size="md" />
             {!collapsed && (
               <span className="truncate text-lg font-semibold tracking-tight">
                 Wolf<span className="text-accent">Radar</span>

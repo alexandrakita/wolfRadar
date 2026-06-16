@@ -14,7 +14,7 @@ export default function Page() {
     <DashboardPageShell>
       <PageHeading
         title="Watchlist"
-        description={`${list.length} ${list.length === 1 ? "stock" : "stocks"} you're tracking. Tap the star anywhere to add or remove.`}
+        description={`${list.length} ${list.length === 1 ? "stock" : "stocks"} you're tracking. Tap the wolf icon anywhere to add or remove.`}
       />
       {list.length === 0 ? (
         <WatchlistEmptyState />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { WolfHeadIcon } from "@/icons/wolf-head-icon";
 import { cn } from "@/lib/utils";
 import { TOAST } from "@/constants/toast-messages";
 import { useWatchlist } from "@/hooks/use-watchlist";
@@ -10,8 +10,15 @@ export function FavoriteButton({ symbol, size = "md", className }) {
   const { has, toggle } = useWatchlist();
   const sym = String(symbol ?? "").toUpperCase();
   const active = has(sym);
-  const dim = size === "sm" ? "h-7 w-7" : size === "lg" ? "h-10 w-10" : "h-8 w-8";
-  const icon = size === "sm" ? "h-3.5 w-3.5" : size === "lg" ? "h-5 w-5" : "h-4 w-4";
+  const dim =
+    size === "sm"
+      ? "h-6 w-6 rounded-md"
+      : size === "lg"
+        ? "h-9 w-9"
+        : "h-7 w-7";
+  const icon =
+    size === "sm" ? "h-4 w-4" : size === "lg" ? "h-5 w-5" : "h-4 w-4";
+  const zoom = size === "sm" ? "scale-[1.45]" : "scale-[1.55]";
 
   return (
     <button
@@ -28,7 +35,7 @@ export function FavoriteButton({ symbol, size = "md", className }) {
       }
       title={active ? "Remove from watchlist" : "Add to watchlist"}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg border transition",
+        "inline-flex items-center justify-center overflow-hidden rounded-lg border transition",
         dim,
         active
           ? "border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20"
@@ -36,7 +43,7 @@ export function FavoriteButton({ symbol, size = "md", className }) {
         className,
       )}
     >
-      <Star className={cn(icon, active && "fill-current")} />
+      <WolfHeadIcon className={cn(icon, zoom)} filled={active} />
     </button>
   );
 }

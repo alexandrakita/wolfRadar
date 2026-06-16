@@ -14,16 +14,22 @@ function fingerprint(symbols) {
 
 /**
  * Quotes via TanStack Query (`QueryProvider` in root layout). `refetchInterval` replaces old polling hook.
+ * @param {string[]} symbols
+ * @param {{ refreshMs?: number, enabled?: boolean } | number} [options] — number shorthand for refreshMs
  */
-export function useQuotes(symbols, refreshMs = 10_000) {
+export function useQuotes(symbols, options) {
+  const opts = typeof options === "number" ? { refreshMs: options } : (options ?? {});
+  const refreshMs = opts.refreshMs ?? 30_000;
   const fp = fingerprint(symbols);
   const list = fp.split(",").filter(Boolean);
+  const enabled = (opts.enabled ?? true) && list.length > 0;
 
   const query = useQuery({
     queryKey: ["quotes", fp],
     queryFn: () => fetchQuotes(list),
-    enabled: list.length > 0,
-    refetchInterval: refreshMs,
+    enabled,
+    refetchInterval: enabled ? refreshMs : false,
+    refetchOnWindowFocus: false,
   });
 
   const errorMessage =

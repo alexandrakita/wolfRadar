@@ -211,7 +211,9 @@ export default function Page() {
   const fields = isStocks ? STOCK_FILTERS : ETF_FILTERS;
 
   const etfSymbols = useMemo(() => ETFS.map((e) => e.sym), []);
-  const { quotes: etfQuotes, error: etfQuotesError } = useQuotes(etfSymbols);
+  const { quotes: etfQuotes, error: etfQuotesError } = useQuotes(etfSymbols, {
+    enabled: tab === SCREENER_TABS.ETFS,
+  });
 
   const stockChips = useMemo(() => {
     const labelOf = (k) => STOCK_FILTERS.find((f) => f.key === k)?.label ?? k;

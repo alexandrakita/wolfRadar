@@ -10,12 +10,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { WolfHeadIcon } from "@/icons/wolf-head-icon";
 import {
   Activity,
   Calendar,
   LineChart,
   Newspaper,
-  Star,
   TrendingUp,
   Wallet,
   Zap,
@@ -23,7 +23,7 @@ import {
 
 const ICONS = {
   [WIDGET_TYPES.MARKET_OVERVIEW]: Activity,
-  [WIDGET_TYPES.FAVORITE_TICKER]: Star,
+  [WIDGET_TYPES.FAVORITE_TICKER]: WolfHeadIcon,
   [WIDGET_TYPES.MARKET_MOVERS]: TrendingUp,
   [WIDGET_TYPES.TOP_WOLF_RATING]: Zap,
   [WIDGET_TYPES.WHATS_CHANGED]: LineChart,
