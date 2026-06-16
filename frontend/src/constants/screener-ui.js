@@ -4,13 +4,13 @@ export const STOCKS = STOCK_UNIVERSE;
 
 export const QUOTE_BUFFER = 25;
 
-/** When stock range filters are on, quotes load for this many rows (sorted) before filtering. */
+/** When stock metrics filters are on, load this many rows (sorted) before filtering. */
 export const MAX_STOCKS_FOR_MARKET_FILTER = 500;
 
 const COUNTRIES = [
-  "US",
+  "United States",
   "Canada",
-  "UK",
+  "United Kingdom",
   "Germany",
   "France",
   "Japan",
@@ -19,41 +19,33 @@ const COUNTRIES = [
   "Brazil",
   "Australia",
 ];
-const INDEXES = [
+
+const EXCHANGES = [
   "Any",
-  "S&P 500",
-  "Nasdaq 100",
-  "Dow 30",
-  "Russell 1000",
-  "Russell 2000",
-  "S&P MidCap 400",
+  "NYSE",
+  "Nasdaq",
+  "NasdaqGS",
+  "NasdaqGM",
+  "NasdaqCM",
+  "NYSEArca",
+  "BATS",
+  "AMEX",
 ];
+
 const SECTORS = [
   "Any",
-  "Technology Services",
-  "Electronic Technology",
-  "Finance",
-  "Health Technology",
-  "Retail Trade",
-  "Energy Minerals",
-  "Consumer Services",
-  "Consumer Durables",
-  "Producer Manufacturing",
-  "Consumer Non-Durables",
+  "Technology",
+  "Healthcare",
+  "Financial Services",
+  "Consumer Cyclical",
+  "Consumer Defensive",
+  "Industrials",
+  "Energy",
   "Utilities",
-  "Communications",
-  "Process Industries",
-  "Transportation",
-  "Industrial Services",
-  "Commercial Services",
-  "Health Services",
-  "Non-Energy Minerals",
-  "Distribution Services",
-  "Miscellaneous",
+  "Real Estate",
+  "Basic Materials",
+  "Communication Services",
 ];
-const ANALYST_RATINGS = ["Any", "Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"];
-const RANGES = ["Any", "Below average", "Average", "Above average", "High"];
-const DATE_RANGES = ["Any", "Today", "Tomorrow", "This week", "Next week", "This month", "Next month"];
 
 const ASSET_CLASSES = [
   "Any",
@@ -79,7 +71,7 @@ const ETF_CATEGORIES = [
 ];
 const BRANDS = ["Any", "iShares", "Vanguard", "SPDR", "Invesco", "Schwab", "ProShares", "First Trust", "WisdomTree"];
 const STRUCTURES = ["Any", "ETF", "ETN", "ETC", "Open-ended fund"];
-
+const RANGES = ["Any", "Below average", "Average", "Above average", "High"];
 
 export const ETFS = [
   {
@@ -164,27 +156,46 @@ export const ETFS = [
   },
 ];
 
-
-export const STOCK_FILTERS = [
-  { key: "country", label: "Country", type: "select", options: COUNTRIES, placeholder: "Any" },
-  { key: "watchlist", label: "Watchlist", type: "select", options: ["Any", "My watchlist", "Favorites", "Holdings"] },
-  { key: "index", label: "Index", type: "select", options: INDEXES },
-  { key: "price", label: "Price", type: "range" },
-  { key: "chg", label: "Chg %", type: "range" },
-  { key: "mktCap", label: "Mkt cap", type: "range" },
-  { key: "pe", label: "P/E", type: "range" },
-  { key: "epsGrowth", label: "EPS dil growth %", type: "range" },
-  { key: "divYield", label: "Div yield %", type: "range" },
-  { key: "sector", label: "Sector", type: "select", options: SECTORS },
-  { key: "rating", label: "Analyst rating", type: "select", options: ANALYST_RATINGS },
-  { key: "perf", label: "Perf %", type: "range" },
-  { key: "revGrowth", label: "Revenue growth %", type: "range" },
-  { key: "peg", label: "PEG", type: "range" },
-  { key: "roe", label: "ROE %", type: "range" },
-  { key: "beta", label: "Beta", type: "range" },
-  { key: "earningsRecent", label: "Recent earnings date", type: "select", options: DATE_RANGES },
-  { key: "earningsUpcoming", label: "Upcoming earnings date", type: "select", options: DATE_RANGES },
+export const STOCK_FILTER_CATEGORIES = [
+  {
+    title: "Market",
+    fields: [
+      { key: "mktCap", label: "Market cap", type: "range", hint: "Raw USD (e.g. 5000000000 for $5B)" },
+      { key: "price", label: "Price", type: "range" },
+      { key: "volume", label: "Volume", type: "range" },
+      { key: "avgVolume", label: "Avg volume (3M)", type: "range" },
+      { key: "country", label: "Country", type: "select", options: COUNTRIES, placeholder: "Any" },
+      { key: "exchange", label: "Exchange", type: "select", options: EXCHANGES },
+      { key: "sector", label: "Sector", type: "select", options: SECTORS },
+      { key: "industry", label: "Industry", type: "text", placeholder: "e.g. Software" },
+    ],
+  },
+  {
+    title: "Performance",
+    fields: [
+      { key: "perfDaily", label: "Daily %", type: "range" },
+      { key: "perfWeekly", label: "Weekly %", type: "range" },
+      { key: "perfMonthly", label: "Monthly %", type: "range" },
+      { key: "perfYtd", label: "YTD %", type: "range" },
+      { key: "high52wProximity", label: "52W high proximity %", type: "range", hint: "Price as % of 52W high" },
+      { key: "low52wProximity", label: "52W low proximity %", type: "range", hint: "Price as % of 52W low" },
+    ],
+  },
+  {
+    title: "Valuation",
+    fields: [
+      { key: "pe", label: "P/E", type: "range" },
+      { key: "ps", label: "P/S", type: "range" },
+      { key: "peg", label: "PEG", type: "range" },
+      { key: "divYield", label: "Div yield %", type: "range" },
+      { key: "epsGrowth", label: "EPS growth %", type: "range" },
+      { key: "revGrowth", label: "Revenue growth %", type: "range" },
+    ],
+  },
 ];
+
+/** Flat list for chip labels / key lookup */
+export const STOCK_FILTERS = STOCK_FILTER_CATEGORIES.flatMap((c) => c.fields);
 
 export const ETF_FILTERS = [
   { key: "country", label: "Country", type: "select", options: COUNTRIES },

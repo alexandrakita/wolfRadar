@@ -22,3 +22,22 @@ export async function fetchQuotes(symbols) {
 
   return merged;
 }
+
+/**
+ * Screener metrics — quote + fundamentals + performance (Yahoo Finance).
+ * @param {string[]} symbols
+ * @returns {Promise<Record<string, object | null>>}
+ */
+export async function fetchScreenerMetrics(symbols) {
+  if (!symbols.length) return {};
+
+  const merged = {};
+
+  for (let i = 0; i < symbols.length; i += CHUNK) {
+    const slice = symbols.slice(i, i + CHUNK);
+    const res = await apiPost("/screener-metrics", { symbols: slice });
+    Object.assign(merged, res.metrics ?? {});
+  }
+
+  return merged;
+}

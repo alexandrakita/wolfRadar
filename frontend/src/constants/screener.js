@@ -11,29 +11,41 @@ export const SCREENER_TABS = {
 };
 
 /** Sort keys allowed per tab — must match compareStockRows / compareEtfRows + headers */
-export const STOCK_SORT_KEYS = new Set(["sym", "price", "chg", "vol", "relVol", "mktCap", "pe", "eps", "epsGrowth"]);
+export const STOCK_SORT_KEYS = new Set([
+  "sym",
+  "price",
+  "chg",
+  "vol",
+  "relVol",
+  "mktCap",
+  "pe",
+  "eps",
+  "epsGrowth",
+]);
 
 export const ETF_SORT_KEYS = new Set(["sym", "price", "chg", "aum", "expense", "yld", "brand"]);
 
 export const STOCK_FILTER_KEYS = new Set([
-  "country",
-  "watchlist",
-  "index",
   "price",
-  "chg",
   "mktCap",
-  "pe",
-  "epsGrowth",
-  "divYield",
+  "volume",
+  "avgVolume",
+  "country",
+  "exchange",
   "sector",
-  "rating",
-  "perf",
-  "revGrowth",
+  "industry",
+  "perfDaily",
+  "perfWeekly",
+  "perfMonthly",
+  "perfYtd",
+  "high52wProximity",
+  "low52wProximity",
+  "pe",
+  "ps",
   "peg",
-  "roe",
-  "beta",
-  "earningsRecent",
-  "earningsUpcoming",
+  "divYield",
+  "epsGrowth",
+  "revGrowth",
 ]);
 
 export const ETF_FILTER_KEYS = new Set([

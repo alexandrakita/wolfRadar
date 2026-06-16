@@ -2,6 +2,7 @@ import express from "express";
 
 import { asyncRoute } from "../lib/async-route.js";
 import { HttpError } from "../lib/http-error.js";
+import { getScreenerMetrics } from "../lib/screener-metrics.js";
 import {
   getQuotes,
   getStockBundle,
@@ -20,6 +21,14 @@ router.post(
   "/quotes",
   asyncRoute(async (req, res) => {
     const payload = await getQuotes(req.body ?? {});
+    res.json(payload);
+  }),
+);
+
+router.post(
+  "/screener-metrics",
+  asyncRoute(async (req, res) => {
+    const payload = await getScreenerMetrics(req.body ?? {});
     res.json(payload);
   }),
 );

@@ -21,11 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { STOCK_BADGE_BY_ID } from "@/constants/stock-badges";
+import { STOCK_FILTER_CATEGORIES } from "@/constants/screener-ui";
 import { SCREENER_PAGE_LIMIT_OPTIONS } from "@/utils/screener-search-params";
+import { QuickFilters } from "./quick-filters";
 import {
   FilterField,
   RangeFilter,
   SelectFilter,
+  TextFilter,
 } from "./filter-widgets";
 
 export function ScreenerFiltersBar({
@@ -35,6 +39,7 @@ export function ScreenerFiltersBar({
   filtersOpen,
   onFiltersOpenChange,
   fields,
+  filterCategories,
   draft,
   setDraft,
   applied,
@@ -45,9 +50,22 @@ export function ScreenerFiltersBar({
   chips,
   onRemoveChip,
   onClearFilters,
+  quickFilters,
+  onQuickFiltersChange,
 }) {
+  const categories = isStocks ? (filterCategories ?? STOCK_FILTER_CATEGORIES) : null;
+
   return (
     <>
+      {isStocks && onQuickFiltersChange ? (
+        <div
+          className="rounded-xl border border-border/60 px-4 py-3"
+          style={{ background: "var(--gradient-card)" }}
+        >
+          <QuickFilters active={quickFilters ?? []} onChange={onQuickFiltersChange} />
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="relative min-w-[200px] flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -86,31 +104,67 @@ export function ScreenerFiltersBar({
               <DialogHeader>
                 <DialogTitle>{isStocks ? "Stock filters" : "ETF filters"}</DialogTitle>
                 <DialogDescription>
-                  Narrow the universe. Empty fields mean &quot;any&quot;. Stocks: price / change /
-                  valuation filters use{" "}
-                  <span className="font-medium text-foreground">live quotes only</span> (no
-                  placeholder numbers).
+                  {isStocks
+                    ? "Combine filters with AND logic. All metrics from Yahoo Finance — missing data excluded."
+                    : "Narrow the ETF list. Empty fields mean any."}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
-                {(fields ?? []).map((f) => (
-                  <FilterField key={f.key} label={f.label}>
-                    {f.type === "select" ? (
-                      <SelectFilter
-                        value={draft[f.key] ?? ""}
-                        onChange={(v) => setDraft({ ...draft, [f.key]: v })}
-                        options={f.options ?? []}
-                        placeholder={f.placeholder}
-                      />
-                    ) : (
-                      <RangeFilter
-                        value={draft[f.key]}
-                        onChange={(v) => setDraft({ ...draft, [f.key]: v })}
-                      />
-                    )}
-                  </FilterField>
-                ))}
-              </div>
+
+              {categories ? (
+                <div className="space-y-6 py-2">
+                  {categories.map((cat) => (
+                    <div key={cat.title}>
+                      <h3 className="mb-3 text-sm font-semibold text-foreground">{cat.title}</h3>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                        {cat.fields.map((f) => (
+                          <FilterField key={f.key} label={f.label} hint={f.hint}>
+                            {f.type === "select" ? (
+                              <SelectFilter
+                                value={draft[f.key] ?? ""}
+                                onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                                options={f.options ?? []}
+                                placeholder={f.placeholder}
+                              />
+                            ) : f.type === "text" ? (
+                              <TextFilter
+                                value={draft[f.key] ?? ""}
+                                onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                                placeholder={f.placeholder}
+                              />
+                            ) : (
+                              <RangeFilter
+                                value={draft[f.key]}
+                                onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                              />
+                            )}
+                          </FilterField>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 md:grid-cols-3">
+                  {(fields ?? []).map((f) => (
+                    <FilterField key={f.key} label={f.label}>
+                      {f.type === "select" ? (
+                        <SelectFilter
+                          value={draft[f.key] ?? ""}
+                          onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                          options={f.options ?? []}
+                          placeholder={f.placeholder}
+                        />
+                      ) : (
+                        <RangeFilter
+                          value={draft[f.key]}
+                          onChange={(v) => setDraft({ ...draft, [f.key]: v })}
+                        />
+                      )}
+                    </FilterField>
+                  ))}
+                </div>
+              )}
+
               <DialogFooter className="gap-2">
                 <Button variant="ghost" onClick={() => setDraft({})}>
                   Reset
@@ -130,10 +184,7 @@ export function ScreenerFiltersBar({
             </DialogContent>
           </Dialog>
 
-          <Select
-            value={String(pageSize)}
-            onValueChange={(v) => onPageSizeChange(Number(v))}
-          >
+          <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
             <SelectTrigger className="h-10 w-[130px] bg-background/80">
               <SelectValue placeholder="Rows" />
             </SelectTrigger>

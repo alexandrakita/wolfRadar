@@ -8,6 +8,7 @@ import { PageHeading } from "@/components/page-heading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useQuotes } from "@/hooks/use-quotes";
+import { useScreenerMetrics } from "@/hooks/use-screener-metrics";
 import {
   Table,
   TableBody,
@@ -31,23 +32,42 @@ import {
   STOCKS,
   ETFS,
   STOCK_FILTERS,
+  STOCK_FILTER_CATEGORIES,
   ETF_FILTERS,
 } from "@/constants/screener-ui";
+import { STOCK_BADGE_BY_ID } from "@/constants/stock-badges";
 import {
   compareStockRows,
   compareEtfRows,
-  enrichStockRow,
+  enrichStockRowFromMetrics,
   fmtMoneyLike,
   fmtVolLike,
   formatChip,
   numericRangeMatches,
-  passesStockMarketFilters,
 } from "@/utils/screener-table";
+import {
+  formatFilterChip,
+  passesStockFilters,
+  stockMetricsFiltersActive,
+} from "@/utils/stock-filters";
+import { computeStockBadges } from "@/utils/stock-badges";
 import {
   SortIndicator,
 } from "./filter-widgets";
 import { MarketIndexesSection } from "./market-indexes-section";
 import { ScreenerFiltersBar } from "./screener-filters-bar";
+import { StockBadges } from "./stock-badges";
+
+const LIVE_STOCK_SORT_KEYS = new Set([
+  "price",
+  "chg",
+  "vol",
+  "relVol",
+  "mktCap",
+  "pe",
+  "eps",
+  "epsGrowth",
+]);
 
 export default function Page() {
   const router = useRouter();
@@ -72,6 +92,7 @@ export default function Page() {
   const [pageSize, setPageSize] = useState(initialUrl.limit);
   const [sortField, setSortField] = useState(initialUrl.sortField);
   const [sortOrder, setSortOrder] = useState(initialUrl.sortOrder);
+  const [quickFilters, setQuickFilters] = useState(initialUrl.quickFilters ?? []);
 
   const urlStateRef = useRef({
     tab,
@@ -83,6 +104,7 @@ export default function Page() {
     sortOrder,
     appliedStock,
     appliedEtf,
+    quickFilters,
   });
   urlStateRef.current = {
     tab,
@@ -94,6 +116,7 @@ export default function Page() {
     sortOrder,
     appliedStock,
     appliedEtf,
+    quickFilters,
   };
 
   const searchParamsRef = useRef(searchParams);
@@ -114,6 +137,7 @@ export default function Page() {
     setAppliedEtf(parsed.appliedEtf);
     setDraftStock(parsed.appliedStock);
     setDraftEtf(parsed.appliedEtf);
+    setQuickFilters(parsed.quickFilters ?? []);
   }, [searchParamsKey]);
 
   useEffect(() => {
@@ -134,6 +158,7 @@ export default function Page() {
         sortOrder: s.sortOrder,
         appliedStock: s.appliedStock,
         appliedEtf: s.appliedEtf,
+        quickFilters: s.quickFilters,
       });
       const next = params.toString();
       const cur = searchParamsRef.current.toString();
@@ -158,6 +183,7 @@ export default function Page() {
     sortOrder,
     appliedStock,
     appliedEtf,
+    quickFilters,
     pathname,
     router,
   ]);
@@ -189,13 +215,21 @@ export default function Page() {
 
   const stockChips = useMemo(() => {
     const labelOf = (k) => STOCK_FILTERS.find((f) => f.key === k)?.label ?? k;
-    return Object.entries(appliedStock)
+    const filterChips = Object.entries(appliedStock)
       .map(([k, v]) => ({
         key: k,
-        text: formatChip(labelOf(k), v),
+        text: formatFilterChip(labelOf(k), v),
       }))
       .filter((c) => !!c.text);
-  }, [appliedStock]);
+    const quickChips = quickFilters.map((id) => {
+      const badge = STOCK_BADGE_BY_ID[id];
+      return {
+        key: `qf:${id}`,
+        text: badge ? `${badge.emoji} ${badge.label}` : id,
+      };
+    });
+    return [...quickChips, ...filterChips];
+  }, [appliedStock, quickFilters]);
 
   const etfChips = useMemo(() => {
     const labelOf = (k) => ETF_FILTERS.find((f) => f.key === k)?.label ?? k;
@@ -207,77 +241,85 @@ export default function Page() {
       .filter((c) => !!c.text);
   }, [appliedEtf]);
 
-  const matchedStocks = useMemo(() => {
-    const f = appliedStock;
-    return STOCKS.filter((s) => {
-      if (typeof f.sector === "string" && f.sector && f.sector !== "Any" && s.sector !== f.sector) {
-        return false;
-      }
-      return true;
-    });
-  }, [appliedStock]);
-
   const searchedStocks = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
-    if (!q) return matchedStocks;
-    return matchedStocks.filter(
+    if (!q) return STOCKS;
+    return STOCKS.filter(
       (s) => s.sym.toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q),
     );
-  }, [matchedStocks, quickSearch]);
+  }, [quickSearch]);
 
-  const sortedStockBundled = useMemo(() => {
-    const arr = [...searchedStocks];
-    if (sortField && sortOrder) {
-      arr.sort((a, b) => compareStockRows(a, b, sortField, sortOrder));
+  const stockMetricsActive = useMemo(
+    () =>
+      stockMetricsFiltersActive(appliedStock, quickFilters) ||
+      !!(sortField && LIVE_STOCK_SORT_KEYS.has(sortField)),
+    [appliedStock, quickFilters, sortField],
+  );
+
+  const stockSymbolsToLoad = useMemo(() => {
+    if (stockMetricsActive) {
+      return searchedStocks.slice(0, MAX_STOCKS_FOR_MARKET_FILTER).map((s) => s.sym);
     }
-    return arr;
-  }, [searchedStocks, sortField, sortOrder]);
-
-  /** Price / valuation range filters require live quotes — never used fake static numbers. */
-  const stockMarketFiltersActive = useMemo(() => {
-    const f = appliedStock;
-    return ["price", "chg", "mktCap", "pe", "epsGrowth"].some((k) => {
-      const v = f[k];
-      return !!(v?.min?.trim() || v?.max?.trim());
-    });
-  }, [appliedStock]);
-
-  const stockSymbolsToQuote = useMemo(() => {
-    if (stockMarketFiltersActive) {
-      return sortedStockBundled.slice(0, MAX_STOCKS_FOR_MARKET_FILTER).map((s) => s.sym);
-    }
-    const total = sortedStockBundled.length;
+    const total = searchedStocks.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const pg = Math.min(Math.max(1, page), totalPages);
     const start = Math.max(0, (pg - 1) * pageSize);
     const end = Math.min(total, start + pageSize + QUOTE_BUFFER);
-    return sortedStockBundled.slice(start, end).map((s) => s.sym);
-  }, [stockMarketFiltersActive, sortedStockBundled, page, pageSize]);
+    return searchedStocks.slice(start, end).map((s) => s.sym);
+  }, [stockMetricsActive, searchedStocks, page, pageSize]);
 
   const {
-    quotes: stockQuotes,
-    error: stockQuotesError,
-    loading: stockQuotesLoading,
-  } = useQuotes(stockSymbolsToQuote);
+    metrics: stockMetrics,
+    error: stockMetricsError,
+    loading: stockMetricsLoading,
+  } = useScreenerMetrics(stockSymbolsToLoad);
 
-  const stockRowsAfterMarketFilters = useMemo(() => {
-    if (!stockMarketFiltersActive) return sortedStockBundled;
-    const pool = sortedStockBundled.slice(0, MAX_STOCKS_FOR_MARKET_FILTER);
-    return pool.filter((s) =>
-      passesStockMarketFilters(enrichStockRow(s, stockQuotes[s.sym]), appliedStock),
-    );
-  }, [stockMarketFiltersActive, sortedStockBundled, stockQuotes, appliedStock]);
+  const enrichedStockPool = useMemo(() => {
+    if (!stockMetricsActive) return [];
+    return searchedStocks
+      .slice(0, MAX_STOCKS_FOR_MARKET_FILTER)
+      .map((s) => enrichStockRowFromMetrics(s, stockMetrics[s.sym]));
+  }, [stockMetricsActive, searchedStocks, stockMetrics]);
 
-  const stockTotal = stockRowsAfterMarketFilters.length;
+  const filteredEnrichedStocks = useMemo(() => {
+    if (!stockMetricsActive) return enrichedStockPool;
+    return enrichedStockPool.filter((row) => passesStockFilters(row, appliedStock, quickFilters));
+  }, [stockMetricsActive, enrichedStockPool, appliedStock, quickFilters]);
+
+  const sortedStocks = useMemo(() => {
+    const arr = stockMetricsActive ? [...filteredEnrichedStocks] : [...searchedStocks];
+    if (sortField && sortOrder) {
+      if (stockMetricsActive || !LIVE_STOCK_SORT_KEYS.has(sortField)) {
+        const enriched = stockMetricsActive
+          ? arr
+          : arr.map((s) => enrichStockRowFromMetrics(s, stockMetrics[s.sym]));
+        enriched.sort((a, b) => compareStockRows(a, b, sortField, sortOrder));
+        return enriched;
+      }
+    }
+    return arr;
+  }, [
+    stockMetricsActive,
+    filteredEnrichedStocks,
+    searchedStocks,
+    sortField,
+    sortOrder,
+    stockMetrics,
+  ]);
+
+  const stockTotal = sortedStocks.length;
   const stockTotalPages = Math.max(1, Math.ceil(stockTotal / pageSize));
   const stockPage = Math.min(Math.max(1, page), stockTotalPages);
-
   const stockQuoteStart = Math.max(0, (stockPage - 1) * pageSize);
 
   const displayedStocks = useMemo(() => {
-    const slice = stockRowsAfterMarketFilters.slice(stockQuoteStart, stockQuoteStart + pageSize);
-    return slice.map((s) => enrichStockRow(s, stockQuotes[s.sym]));
-  }, [stockRowsAfterMarketFilters, stockQuoteStart, pageSize, stockQuotes]);
+    const slice = sortedStocks.slice(stockQuoteStart, stockQuoteStart + pageSize);
+    return slice.map((s) => {
+      const row = s.price != null ? s : enrichStockRowFromMetrics(s, stockMetrics[s.sym]);
+      const badges = computeStockBadges(row).map((b) => b.id);
+      return { ...row, badgeIds: badges };
+    });
+  }, [sortedStocks, stockQuoteStart, pageSize, stockMetrics]);
 
   const handleSort = (field) => {
     setPage(1);
@@ -301,6 +343,7 @@ export default function Page() {
   const stockHeaders = [
     { key: null, label: "", sortable: false },
     { key: "sym", label: "Symbol", sortable: true },
+    { key: null, label: "Badges", sortable: false },
     { key: "price", label: "Price", sortable: true },
     { key: "chg", label: "Chg %", sortable: true },
     { key: "vol", label: "Vol", sortable: true },
@@ -389,13 +432,24 @@ export default function Page() {
     ...filtersBarProps,
     isStocks: true,
     fields: STOCK_FILTERS,
+    filterCategories: STOCK_FILTER_CATEGORIES,
     draft: draftStock,
     setDraft: setDraftStock,
     applied: appliedStock,
     setApplied: setAppliedStock,
     chips: stockChips,
+    quickFilters,
+    onQuickFiltersChange: (next) => {
+      setQuickFilters(next);
+      setPage(1);
+    },
     onRemoveChip: (key) => {
       setPage(1);
+      if (key.startsWith("qf:")) {
+        const id = key.slice(3);
+        setQuickFilters((prev) => prev.filter((x) => x !== id));
+        return;
+      }
       setAppliedStock((prev) => {
         const next = { ...prev };
         delete next[key];
@@ -409,6 +463,7 @@ export default function Page() {
     },
     onClearFilters: () => {
       setAppliedStock({});
+      setQuickFilters([]);
       setPage(1);
     },
   };
@@ -443,13 +498,13 @@ export default function Page() {
 
   return (
     <DashboardPageShell>
-          {(stockQuotesError || etfQuotesError) && (
+          {(stockMetricsError || etfQuotesError) && (
             <div
               role="alert"
               className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
             >
-              Live quotes failed: {stockQuotesError || etfQuotesError}. Run the backend (e.g. npm run dev in backend/)
-              and set STOCKY_BACKEND_URL if the API is not on the default URL.
+              Live data failed: {stockMetricsError || etfQuotesError}. Run the backend (e.g. npm run dev in
+              backend/) and set STOCKY_BACKEND_URL if the API is not on the default URL.
             </div>
           )}
 
@@ -486,18 +541,18 @@ export default function Page() {
             </TabsContent>
 
             <TabsContent value={SCREENER_TABS.STOCKS} className="mt-0 space-y-4">
-          {stockQuotesLoading && !stockQuotesError && (
+          {stockMetricsLoading && !stockMetricsError && (
             <div className="text-xs text-muted-foreground">
-              {stockMarketFiltersActive
-                ? `Loading live quotes to apply filters (first ${MAX_STOCKS_FOR_MARKET_FILTER} rows in sort order)…`
-                : "Loading live prices for this page…"}
+              {stockMetricsActive
+                ? `Loading Yahoo metrics to apply filters & badges (first ${MAX_STOCKS_FOR_MARKET_FILTER} rows)…`
+                : "Loading metrics for this page…"}
             </div>
           )}
-          {stockMarketFiltersActive && !stockQuotesError && (
+          {stockMetricsActive && !stockMetricsError && (
             <div className="text-xs text-muted-foreground" role="status">
-              Showing symbols that match filters using live Yahoo data only. Applies to up to{" "}
-              <span className="font-medium tabular-nums">{MAX_STOCKS_FOR_MARKET_FILTER}</span>{" "}
-              results in the current sort; narrow search to avoid missing symbols further down.
+              Filters & badges use live Yahoo Finance data. Applies to up to{" "}
+              <span className="font-medium tabular-nums">{MAX_STOCKS_FOR_MARKET_FILTER}</span> results in
+              current sort — narrow search to avoid missing symbols further down.
             </div>
           )}
 
@@ -513,10 +568,10 @@ export default function Page() {
                 <Table containerClassName="max-h-[calc(100vh-280px)] rounded-none border-0">
                   <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                     <TableRow className="border-border/60 hover:bg-transparent">
-                      {stockHeaders.map((col) =>
+                      {stockHeaders.map((col, idx) =>
                         col.sortable ? (
                           <TableHead
-                            key={col.key || "fav"}
+                            key={col.key || `col-${idx}`}
                             className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground ${
                               col.key ? "cursor-pointer select-none hover:bg-secondary/40" : ""
                             }`}
@@ -534,8 +589,10 @@ export default function Page() {
                           </TableHead>
                         ) : (
                           <TableHead
-                            key="fav"
-                            className="w-12 whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                            key={col.key || `col-${idx}`}
+                            className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground ${
+                              col.key === null && col.label === "" ? "w-9 px-2" : "min-w-[120px]"
+                            }`}
                           >
                             {col.label}
                           </TableHead>
@@ -549,7 +606,7 @@ export default function Page() {
                       const epsUp = (s.epsGrowth ?? 0) >= 0;
                       return (
                         <TableRow key={s.sym} className="hover:bg-secondary/30">
-                          <TableCell className="px-4 py-3">
+                          <TableCell className="w-9 px-2 py-3">
                             <FavoriteButton symbol={s.sym} size="sm" />
                           </TableCell>
                           <TableCell className="whitespace-nowrap px-4 py-3">
@@ -564,6 +621,9 @@ export default function Page() {
                                 <div className="text-xs text-muted-foreground">{s.name}</div>
                               </div>
                             </Link>
+                          </TableCell>
+                          <TableCell className="px-4 py-3">
+                            <StockBadges badgeIds={s.badgeIds} />
                           </TableCell>
                           <TableCell className="px-4 py-3 tabular-nums">
                             <span>
@@ -616,7 +676,7 @@ export default function Page() {
                     {displayedStocks.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={10}
+                          colSpan={11}
                           className="px-4 py-8 text-center text-sm text-muted-foreground"
                         >
                           No stocks match search or filters.

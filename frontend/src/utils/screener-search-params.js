@@ -10,6 +10,7 @@ import {
   STOCK_FILTER_KEYS,
   ETF_FILTER_KEYS,
 } from "@/constants/screener";
+import { STOCK_BADGE_IDS } from "@/constants/stock-badges";
 import { isMarketIndex } from "@/constants/market-indexes";
 
 export {
@@ -30,14 +31,24 @@ function sanitizeApplied(raw, whitelist) {
       out[k] = v;
       continue;
     }
-    if (v && typeof v === "object" && ("min" in v || "max" in v)) {
+    if (v && typeof v === "object" && ("min" in v || "max" in v || "op" in v)) {
       out[k] = {
+        op: v.op != null ? String(v.op) : undefined,
         min: v.min != null ? String(v.min) : "",
         max: v.max != null ? String(v.max) : "",
       };
     }
   }
   return out;
+}
+
+function parseQuickFilters(searchParams) {
+  const raw = searchParams.get("qf") ?? "";
+  if (!raw.trim()) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((id) => STOCK_BADGE_IDS.has(id));
 }
 
 /**
@@ -118,6 +129,7 @@ export function parseScreenerSearchParams(source) {
     sortOrder,
     appliedStock,
     appliedEtf,
+    quickFilters: parseQuickFilters(searchParams),
   };
 }
 
@@ -132,6 +144,7 @@ export function parseScreenerSearchParams(source) {
  *   sortOrder: string | null,
  *   appliedStock: Record<string, unknown>,
  *   appliedEtf: Record<string, unknown>,
+ *   quickFilters?: string[],
  * }} state
  */
 export function buildScreenerSearchParams(state) {
@@ -145,6 +158,7 @@ export function buildScreenerSearchParams(state) {
     sortOrder,
     appliedStock,
     appliedEtf,
+    quickFilters,
   } = state;
 
   const params = new URLSearchParams();
@@ -175,6 +189,10 @@ export function buildScreenerSearchParams(state) {
   }
   if (Object.keys(filtersPayload).length > 0) {
     params.set("filters", JSON.stringify(filtersPayload));
+  }
+
+  if (Array.isArray(quickFilters) && quickFilters.length > 0) {
+    params.set("qf", quickFilters.join(","));
   }
 
   return params;

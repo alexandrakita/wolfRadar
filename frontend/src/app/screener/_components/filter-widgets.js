@@ -11,11 +11,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function FilterField({ label, children }) {
+export function FilterField({ label, hint, children }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       {children}
+      {hint ? <p className="text-[10px] text-muted-foreground/80">{hint}</p> : null}
     </div>
   );
 }
@@ -40,22 +41,83 @@ export function SelectFilter({ value, onChange, options, placeholder }) {
   );
 }
 
-export function RangeFilter({ value, onChange }) {
+export function TextFilter({ value, onChange, placeholder }) {
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        className="h-9 bg-background/40"
-        placeholder="Min"
-        value={value?.min ?? ""}
-        onChange={(e) => onChange({ ...value, min: e.target.value })}
-      />
-      <span className="text-xs text-muted-foreground">—</span>
-      <Input
-        className="h-9 bg-background/40"
-        placeholder="Max"
-        value={value?.max ?? ""}
-        onChange={(e) => onChange({ ...value, max: e.target.value })}
-      />
+    <Input
+      className="h-9 bg-background/40"
+      placeholder={placeholder ?? "Any"}
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+const OPERATORS = [
+  { value: "gt", label: "Greater than" },
+  { value: "lt", label: "Less than" },
+  { value: "eq", label: "Equal to" },
+  { value: "between", label: "Between" },
+];
+
+export function RangeFilter({ value, onChange }) {
+  const op = value?.op ?? "between";
+
+  return (
+    <div className="space-y-2">
+      <Select
+        value={op}
+        onValueChange={(v) => onChange({ ...value, op: v, min: value?.min ?? "", max: value?.max ?? "" })}
+      >
+        <SelectTrigger className="h-8 bg-background/40 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {OPERATORS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {op === "between" ? (
+        <div className="flex items-center gap-2">
+          <Input
+            className="h-9 bg-background/40"
+            placeholder="Min"
+            value={value?.min ?? ""}
+            onChange={(e) => onChange({ ...value, op, min: e.target.value })}
+          />
+          <span className="text-xs text-muted-foreground">—</span>
+          <Input
+            className="h-9 bg-background/40"
+            placeholder="Max"
+            value={value?.max ?? ""}
+            onChange={(e) => onChange({ ...value, op, max: e.target.value })}
+          />
+        </div>
+      ) : op === "eq" ? (
+        <Input
+          className="h-9 bg-background/40"
+          placeholder="Value"
+          value={value?.min ?? ""}
+          onChange={(e) => onChange({ ...value, op, min: e.target.value, max: "" })}
+        />
+      ) : op === "gt" ? (
+        <Input
+          className="h-9 bg-background/40"
+          placeholder="Greater than"
+          value={value?.min ?? ""}
+          onChange={(e) => onChange({ ...value, op, min: e.target.value, max: "" })}
+        />
+      ) : (
+        <Input
+          className="h-9 bg-background/40"
+          placeholder="Less than"
+          value={value?.max ?? ""}
+          onChange={(e) => onChange({ ...value, op, max: e.target.value, min: "" })}
+        />
+      )}
     </div>
   );
 }
