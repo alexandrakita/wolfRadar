@@ -1,19 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STORE_DIR = path.join(__dirname, "../../data/wolf-ratings");
+import { getWolfRatingsDir } from "../paths.js";
 
 /** @type {Map<string, Promise<void>>} */
 const writeChains = new Map();
 
 async function ensureDir() {
-  await fs.mkdir(STORE_DIR, { recursive: true });
+  await fs.mkdir(getWolfRatingsDir(), { recursive: true });
 }
 
 function fileForDate(ratingDate) {
-  return path.join(STORE_DIR, `${ratingDate}.json`);
+  return path.join(getWolfRatingsDir(), `${ratingDate}.json`);
 }
 
 /**

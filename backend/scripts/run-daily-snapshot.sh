@@ -12,8 +12,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-LOG_DIR="$ROOT/logs"
-DATA_DIR="$ROOT/data"
+LOG_DIR="${WOLF_DATA_DIR:-$ROOT/data}/logs"
+DATA_DIR="${WOLF_DATA_DIR:-$ROOT/data}"
 LOCK_DIR="$DATA_DIR/.snapshot.lock"
 mkdir -p "$LOG_DIR" "$DATA_DIR"
 

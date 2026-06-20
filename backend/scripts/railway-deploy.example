@@ -1,0 +1,53 @@
+# wolfRadar — Railway + Vercel production setup
+#
+# ARCHITECTURE
+#   Vercel (frontend)  →  STOCKY_BACKEND_URL  →  Railway API  →  SQLite on /data volume
+#   Railway Cron (daily) →  same /data volume  →  refreshes snapshot
+#
+# ─── STEP 1: Railway API service ───
+#
+# 1. railway.app → New Project → Deploy from GitHub (wolfRadar repo)
+# 2. Service name: api
+# 3. Settings → Config-as-code path: railway.toml
+# 4. Volumes → Add Volume → Mount path: /data
+# 5. Variables:
+#      WOLF_DATA_DIR=/data
+#      NODE_ENV=production
+# 6. Settings → Networking → Generate Domain
+#    Example: https://wolfradar-api-production.up.railway.app
+#
+# ─── STEP 2: First snapshot (one time, ~1–2 hours) ───
+#
+# Install Railway CLI: npm i -g @railway/cli
+# railway login
+# railway link
+# railway run --service api node scripts/bootstrap-snapshot.js
+#
+# Verify:
+#   curl https://YOUR-API-DOMAIN/api/screener/status
+#   → "rowCount": 6381
+#
+# ─── STEP 3: Railway Cron service (daily auto-refresh) ───
+#
+# 1. Same project → + New → Empty Service → name: snapshot-cron
+# 2. Settings → Config-as-code path: railway.cron.toml
+# 3. Attach SAME volume → mount /data  (critical!)
+# 4. Variables: WOLF_DATA_DIR=/data, NODE_ENV=production
+# 5. Cron runs Mon–Fri 11:00 UTC automatically
+#
+# ─── STEP 4: Vercel frontend ───
+#
+# Vercel project → Settings → Environment Variables:
+#   STOCKY_BACKEND_URL=https://YOUR-API-DOMAIN
+# (no trailing slash)
+#
+# Redeploy Vercel after saving.
+#
+# Verify:
+#   curl https://YOUR-VERCEL-APP.vercel.app/api/screener/status
+#   → same rowCount as Railway
+#
+# ─── LOCAL DOCKER TEST ───
+#
+# docker build -t wolfradar-api .
+# docker run -p 3333:3333 -v wolfradar-data:/data wolfradar-api

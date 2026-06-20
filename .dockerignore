@@ -1,0 +1,14 @@
+# Build from repo root: docker build -t wolfradar-api .
+node_modules
+.git
+.next
+backend/node_modules
+frontend/node_modules
+backend/data/wolf-radar.db
+backend/data/wolf-radar.db-*
+backend/data/wolf-ratings/*.json
+backend/data/.snapshot.lock
+backend/logs
+*.log
+.env
+.env.*

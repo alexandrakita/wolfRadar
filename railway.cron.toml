@@ -1,0 +1,19 @@
+# wolfRadar daily snapshot — Railway CRON service
+#
+# Create a SECOND service in the same Railway project:
+# 1. "+ New" → "Empty Service" → same GitHub repo
+# 2. Settings → Config file path: railway.cron.toml
+# 3. Attach the SAME volume as the API service → mount /data
+# 4. Variables: WOLF_DATA_DIR=/data, NODE_ENV=production
+#
+# Schedule: 11:00 UTC Mon–Fri (~6 AM US Eastern, before market open)
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["backend/**", "frontend/src/data/stock-universe-data.json", "Dockerfile"]
+
+[deploy]
+startCommand = "node scripts/build-screener-snapshot.js"
+cronSchedule = "0 11 * * 1-5"
+restartPolicyType = "NEVER"

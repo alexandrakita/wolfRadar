@@ -7,7 +7,8 @@
     "start": "node index.js",
     "recalc-ratings": "node scripts/recalc-wolf-ratings.js",
     "build-snapshot": "node scripts/build-screener-snapshot.js",
-    "daily-snapshot": "bash scripts/run-daily-snapshot.sh"
+    "daily-snapshot": "bash scripts/run-daily-snapshot.sh",
+    "bootstrap-snapshot": "node scripts/bootstrap-snapshot.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
