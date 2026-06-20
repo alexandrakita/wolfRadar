@@ -14,6 +14,10 @@ export const metadata = {
     template: "%s · WolfRadar",
   },
   description: "Stock screener, watchlist, portfolio and fundamentals.",
+  icons: {
+    icon: "/icons/wolf-radar-icon.png",
+    apple: "/icons/wolf-radar-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {

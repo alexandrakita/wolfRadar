@@ -45,8 +45,8 @@ export const STOCK_BADGES = [
     id: "wolfPicks",
     emoji: "🐺",
     label: "Wolf Picks",
-    short: "Strong growth with elevated interest. Placeholder until Wolf Rating ships.",
-    criteria: "Revenue growth > 20% AND EPS growth > 20% AND rel. volume > 1.5",
+    short: "Official Wolf Rating opportunity score of 70 or higher.",
+    criteria: "Wolf Rating ≥ 70",
     color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
   },
   {

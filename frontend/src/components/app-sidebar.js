@@ -116,12 +116,9 @@ export function AppSidebar({
               <Link
                 href="/"
                 onClick={closeMobile}
-                className="flex flex-1 items-center gap-2 overflow-hidden min-w-0"
+                className="flex min-w-0 flex-1 items-center overflow-hidden"
               >
-                <BrandLogo size="md" />
-                <span className="truncate text-lg font-semibold tracking-tight">
-                  Wolf<span className="text-accent">Radar</span>
-                </span>
+                <BrandLogo size="md" variant="split" />
               </Link>
               <button
                 type="button"
@@ -153,13 +150,11 @@ export function AppSidebar({
         )}
       >
         <div className="flex items-center justify-between gap-2 px-4 py-5">
-          <Link href="/" className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <BrandLogo size="md" />
-            {!collapsed && (
-              <span className="truncate text-lg font-semibold tracking-tight">
-                Wolf<span className="text-accent">Radar</span>
-              </span>
-            )}
+          <Link href="/" className="flex min-w-0 items-center overflow-hidden">
+            <BrandLogo
+              size={collapsed ? "icon" : "md"}
+              variant="split"
+            />
           </Link>
           <button
             type="button"

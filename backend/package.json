@@ -4,9 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "recalc-ratings": "node scripts/recalc-wolf-ratings.js",
+    "build-snapshot": "node scripts/build-screener-snapshot.js",
+    "daily-snapshot": "bash scripts/run-daily-snapshot.sh"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",

@@ -41,11 +41,8 @@ export function badgeMatches(row, badgeId) {
       return price <= low * 1.1;
     }
     case "wolfPicks": {
-      const revGrowth = num(row.revGrowth ?? row.revenueGrowth);
-      const epsGrowth = num(row.epsGrowth);
-      const relVol = num(row.relVol);
-      if (revGrowth == null || epsGrowth == null || relVol == null) return false;
-      return revGrowth > 20 && epsGrowth > 20 && relVol > 1.5;
+      const wolfRating = num(row.wolfRating);
+      return wolfRating != null && wolfRating >= 70;
     }
     case "volumeSpikes": {
       const relVol = num(row.relVol);

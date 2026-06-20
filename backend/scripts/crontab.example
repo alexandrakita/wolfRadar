@@ -1,0 +1,33 @@
+# wolfRadar — daily snapshot scheduler examples
+#
+# The job runs: backend/scripts/run-daily-snapshot.sh
+# It builds SQLite screener snapshot + Wolf Ratings for the full universe.
+# Resume-safe: interrupted runs continue on the next invocation (skips symbols already stored for today).
+#
+# --- crontab (Linux / macOS) ---
+#
+# Edit: crontab -e
+#
+# 11:00 UTC Mon–Fri (~6:00 AM US Eastern, before market open)
+# Adjust hour for your timezone.
+#
+# 0 11 * * 1-5 /Users/alexandrakita/wolfRadar/backend/scripts/run-daily-snapshot.sh
+#
+# Optional: force full recompute every Sunday 05:00 UTC
+# 0 5 * * 0 /Users/alexandrakita/wolfRadar/backend/scripts/run-daily-snapshot.sh --force
+#
+# --- macOS launchd (recommended on Mac) ---
+#
+# 1. Copy and edit the plist path:
+#    cp scripts/com.wolfradar.snapshot.plist.example ~/Library/LaunchAgents/com.wolfradar.snapshot.plist
+# 2. Load:
+#    launchctl load ~/Library/LaunchAgents/com.wolfradar.snapshot.plist
+# 3. Test run:
+#    launchctl start com.wolfradar.snapshot
+# 4. Logs:
+#    backend/logs/snapshot-YYYY-MM-DD.log
+#
+# --- verify ---
+#
+# curl http://127.0.0.1:3333/api/screener/status
+# rowCount should be ~6381 after a successful full run

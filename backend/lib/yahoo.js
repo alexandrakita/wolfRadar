@@ -1,14 +1,7 @@
 import YahooFinance from "yahoo-finance2";
 
 import { HttpError } from "./http-error.js";
-
-const yahooFinance = new YahooFinance();
-
-try {
-  yahooFinance.suppressNotices?.(["yahooSurvey", "ripHistorical"]);
-} catch {
-  // ignore
-}
+import { withYahooRetry, yahooFinance } from "./yahoo-client.js";
 
 const CACHE = new Map();
 const INFLIGHT = new Map();
@@ -36,10 +29,13 @@ export function sanitizeSymbols(raw) {
   ).slice(0, 50);
 }
 
-async function cached(key, ttlMs, loader, fallback) {
+async function cached(key, ttlMs, loader, fallback, isComplete) {
   const now = Date.now();
   const hit = CACHE.get(key);
-  if (hit && now - hit.t < ttlMs) return hit.data;
+  if (hit && now - hit.t < ttlMs) {
+    if (!isComplete || isComplete(hit.data)) return hit.data;
+    CACHE.delete(key);
+  }
 
   let inflight = INFLIGHT.get(key);
   if (inflight) return inflight;
@@ -47,12 +43,16 @@ async function cached(key, ttlMs, loader, fallback) {
   inflight = (async () => {
     try {
       const data = await loader();
-      CACHE.set(key, { t: Date.now(), data });
+      if (!isComplete || isComplete(data)) {
+        CACHE.set(key, { t: Date.now(), data });
+      }
       return data;
     } catch (e) {
       console.error(`[yahoo] ${key} failed:`, e.message);
-      CACHE.set(key, { t: Date.now(), data: fallback });
-      setTimeout(() => CACHE.delete(key), TTL.neg);
+      if (fallback != null) {
+        CACHE.set(key, { t: Date.now(), data: fallback });
+        setTimeout(() => CACHE.delete(key), TTL.neg);
+      }
       return fallback;
     } finally {
       INFLIGHT.delete(key);
@@ -77,12 +77,14 @@ function n(v) {
 }
 
 async function loadFundamentals(symbol) {
-  const qs = await yahooFinance.quoteSummary(
-    symbol,
-    {
-      modules: ["summaryDetail", "defaultKeyStatistics", "financialData", "price"],
-    },
-    { validateResult: false },
+  const qs = await withYahooRetry(() =>
+    yahooFinance.quoteSummary(
+      symbol,
+      {
+        modules: ["summaryDetail", "defaultKeyStatistics", "financialData", "price"],
+      },
+      { validateResult: false },
+    ),
   );
 
   const sd = qs.summaryDetail ?? {};
@@ -165,6 +167,7 @@ export async function getYahooFundamentals(symbol) {
     TTL.fundamentals,
     () => loadFundamentals(symbol),
     null,
+    (d) => d?.price != null,
   );
 }
 
@@ -404,28 +407,42 @@ export async function getQuotes(handlerInput) {
   const batch = 35;
   for (let i = 0; i < need.length; i += batch) {
     const slice = need.slice(i, i + batch);
-    try {
-      const rows = await yahooFinance.quote(slice, {}, { validateResult: false });
-      const list = Array.isArray(rows) ? rows : [rows];
-      /** @type {Map<string, object>} */
-      const bySym = new Map();
-      for (const row of list) {
-        if (row && typeof row === "object" && "symbol" in row) {
-          bySym.set(String(/** @type {{ symbol: string }} */ (row).symbol).toUpperCase(), /** @type {object} */ (row));
+    let mappedBatch = false;
+    for (let attempt = 0; attempt < 3 && !mappedBatch; attempt++) {
+      try {
+        const rows = await withYahooRetry(
+          () => yahooFinance.quote(slice, {}, { validateResult: false }),
+          { attempts: 2 },
+        );
+        const list = Array.isArray(rows) ? rows : [rows];
+        /** @type {Map<string, object>} */
+        const bySym = new Map();
+        for (const row of list) {
+          if (row && typeof row === "object" && "symbol" in row) {
+            bySym.set(String(/** @type {{ symbol: string }} */ (row).symbol).toUpperCase(), /** @type {object} */ (row));
+          }
         }
-      }
-      const t = Date.now();
-      for (const s of slice) {
-        const mapped = yahooRowToMarketQuote(bySym.get(s));
-        CACHE.set(`quote:${s}`, { t, data: mapped });
-        out[s] = mapped;
-      }
-    } catch (e) {
-      console.error("[yahoo] quote batch failed:", /** @type {Error} */ (e).message);
-      const t = Date.now();
-      for (const s of slice) {
-        CACHE.set(`quote:${s}`, { t, data: null });
-        out[s] = null;
+        const t = Date.now();
+        for (const s of slice) {
+          const mapped = yahooRowToMarketQuote(bySym.get(s));
+          if (mapped) CACHE.set(`quote:${s}`, { t, data: mapped });
+          out[s] = mapped;
+        }
+        mappedBatch = true;
+      } catch (e) {
+        console.error(
+          `[yahoo] quote batch failed (attempt ${attempt + 1}):`,
+          /** @type {Error} */ (e).message,
+        );
+        if (attempt >= 2) {
+          for (const s of slice) {
+            out[s] = null;
+          }
+        } else {
+          await new Promise((r) => {
+            setTimeout(r, 400 * (attempt + 1));
+          });
+        }
       }
     }
     if (i + batch < need.length) {
@@ -444,14 +461,16 @@ export async function getQuotes(handlerInput) {
 
 async function loadStockBundle(sym) {
   const [quoteResult, fundResult, qsResult, recResult, insResult] = await Promise.allSettled([
-    yahooFinance.quote(sym, {}, { validateResult: false }),
+    withYahooRetry(() => yahooFinance.quote(sym, {}, { validateResult: false })),
     getYahooFundamentals(sym),
-    yahooFinance.quoteSummary(
-      sym,
-      {
-        modules: ["assetProfile", "recommendationTrend", "earningsHistory", "insiderTransactions"],
-      },
-      { validateResult: false },
+    withYahooRetry(() =>
+      yahooFinance.quoteSummary(
+        sym,
+        {
+          modules: ["assetProfile", "recommendationTrend", "earningsHistory", "insiderTransactions"],
+        },
+        { validateResult: false },
+      ),
     ),
     yahooFinance.recommendationsBySymbol(sym),
     yahooFinance.insights(sym, { reportsCount: 10 }),
@@ -629,7 +648,13 @@ export async function getStockBundle(handlerInput) {
   const sym = normSym(handlerInput.symbol);
   if (!sym) throw new HttpError(400, "Invalid symbol");
 
-  const data = await cached(`bundle:${sym}`, TTL.bundle, () => loadStockBundle(sym), null);
+  const data = await cached(
+    `bundle:${sym}`,
+    TTL.bundle,
+    () => loadStockBundle(sym),
+    null,
+    (d) => d?.quote?.c != null,
+  );
 
   if (data && typeof data === "object") return data;
 

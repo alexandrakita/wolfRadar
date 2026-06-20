@@ -1,19 +1,10 @@
-import YahooFinance from "yahoo-finance2";
-
 import { fmpStockLogoUrl, getQuotes, sanitizeSymbols } from "./yahoo.js";
-
-const yahooFinance = new YahooFinance();
-
-try {
-  yahooFinance.suppressNotices?.(["yahooSurvey", "ripHistorical"]);
-} catch {
-  // ignore
-}
+import { withYahooRetry, yahooFinance } from "./yahoo-client.js";
 
 const CACHE = new Map();
 const INFLIGHT = new Map();
 const METRICS_TTL = 30 * 60_000;
-const CONCURRENCY = 6;
+const CONCURRENCY = 4;
 
 function n(v) {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -87,10 +78,13 @@ function computePerformance(points) {
   };
 }
 
-async function cached(key, ttlMs, loader) {
+async function cached(key, ttlMs, loader, isComplete) {
   const now = Date.now();
   const hit = CACHE.get(key);
-  if (hit && now - hit.t < ttlMs) return hit.data;
+  if (hit && now - hit.t < ttlMs) {
+    if (!isComplete || isComplete(hit.data)) return hit.data;
+    CACHE.delete(key);
+  }
 
   let inflight = INFLIGHT.get(key);
   if (inflight) return inflight;
@@ -98,7 +92,9 @@ async function cached(key, ttlMs, loader) {
   inflight = (async () => {
     try {
       const data = await loader();
-      CACHE.set(key, { t: Date.now(), data });
+      if (!isComplete || isComplete(data)) {
+        CACHE.set(key, { t: Date.now(), data });
+      }
       return data;
     } finally {
       INFLIGHT.delete(key);
@@ -109,21 +105,32 @@ async function cached(key, ttlMs, loader) {
   return inflight;
 }
 
-async function loadSymbolMetrics(sym) {
-  return cached(`screener:${sym}`, METRICS_TTL, async () => {
+function metricsComplete(data) {
+  return data != null && data.price != null && Number.isFinite(data.price);
+}
+
+export async function loadSymbolMetrics(sym) {
+  return cached(
+    `screener:${sym}`,
+    METRICS_TTL,
+    async () => {
     const [qsResult, chartResult] = await Promise.allSettled([
-      yahooFinance.quoteSummary(
-        sym,
-        {
-          modules: ["summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "price"],
-        },
-        { validateResult: false },
+      withYahooRetry(() =>
+        yahooFinance.quoteSummary(
+          sym,
+          {
+            modules: ["summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "price"],
+          },
+          { validateResult: false },
+        ),
       ),
-      yahooFinance.chart(sym, {
-        period1: new Date(Date.now() - 370 * 86_400_000),
-        period2: new Date(),
-        interval: "1d",
-      }),
+      withYahooRetry(() =>
+        yahooFinance.chart(sym, {
+          period1: new Date(Date.now() - 370 * 86_400_000),
+          period2: new Date(),
+          interval: "1d",
+        }),
+      ),
     ]);
 
     const qs = qsResult.status === "fulfilled" ? qsResult.value : {};
@@ -168,7 +175,7 @@ async function loadSymbolMetrics(sym) {
 
     return {
       price,
-      chg: n(pr.regularMarketChangePercent) ?? null,
+      chg: toPct(n(pr.regularMarketChangePercent)) ?? toPct(n(sd.regularMarketChangePercent)),
       vol: n(sd.regularMarketVolume) ?? n(pr.regularMarketVolume),
       avgVolume: n(sd.averageDailyVolume3Month) ?? n(pr.averageDailyVolume3Month),
       relVol: (() => {
@@ -209,7 +216,9 @@ async function loadSymbolMetrics(sym) {
       logo: fmpStockLogoUrl(sym),
       ...perf,
     };
-  });
+  },
+  metricsComplete,
+  );
 }
 
 async function mapPool(items, worker) {

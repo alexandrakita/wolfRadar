@@ -20,6 +20,11 @@ dist-ssr
 .nitro
 *.local
 .env
+backend/data/wolf-ratings/*.json
+backend/data/wolf-radar.db
+backend/data/wolf-radar.db-*
+backend/data/.snapshot.lock/
+backend/logs/
 
 # Wrangler / Cloudflare (legacy TanStack Worker)
 .wrangler/

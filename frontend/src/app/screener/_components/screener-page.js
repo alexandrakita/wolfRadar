@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
@@ -9,6 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useQuotes } from "@/hooks/use-quotes";
 import { useScreenerMetrics } from "@/hooks/use-screener-metrics";
+import { useScreenerQuery } from "@/hooks/use-screener-query";
+import { useScreenerSync } from "@/hooks/use-screener-sync";
 import {
   Table,
   TableBody,
@@ -27,7 +28,6 @@ import {
 } from "@/utils/screener-search-params";
 import { SCREENER_TABS } from "@/constants/screener";
 import {
-  MAX_STOCKS_FOR_MARKET_FILTER,
   QUOTE_BUFFER,
   STOCKS,
   ETFS,
@@ -47,7 +47,6 @@ import {
 } from "@/utils/screener-table";
 import {
   formatFilterChip,
-  passesStockFilters,
   stockMetricsFiltersActive,
 } from "@/utils/stock-filters";
 import { computeStockBadges } from "@/utils/stock-badges";
@@ -204,6 +203,7 @@ export default function Page() {
   };
 
   const isStocks = tab === SCREENER_TABS.STOCKS;
+  useScreenerSync(isStocks);
   const draft = isStocks ? draftStock : draftEtf;
   const setDraft = isStocks ? setDraftStock : setDraftEtf;
   const applied = isStocks ? appliedStock : appliedEtf;
@@ -258,9 +258,36 @@ export default function Page() {
     [appliedStock, quickFilters, sortField],
   );
 
+  const useServerScreener = isStocks && stockMetricsActive;
+
+  const {
+    rows: serverRows,
+    total: serverTotal,
+    totalInStore,
+    snapshotDate,
+    ready: snapshotReady,
+    message: snapshotMessage,
+    loading: serverLoading,
+    fetching: serverFetching,
+    fromCache: serverFromCache,
+    error: serverError,
+  } = useScreenerQuery(
+    {
+      filters: appliedStock,
+      quickFilters,
+      q: quickSearch,
+      sortField,
+      sortOrder,
+      page,
+      pageSize,
+    },
+    useServerScreener,
+  );
+
   const stockSymbolsToLoad = useMemo(() => {
+    if (useServerScreener) return [];
     if (stockMetricsActive) {
-      return searchedStocks.slice(0, MAX_STOCKS_FOR_MARKET_FILTER).map((s) => s.sym);
+      return searchedStocks.map((s) => s.sym);
     }
     const total = searchedStocks.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -268,7 +295,7 @@ export default function Page() {
     const start = Math.max(0, (pg - 1) * pageSize);
     const end = Math.min(total, start + pageSize + QUOTE_BUFFER);
     return searchedStocks.slice(start, end).map((s) => s.sym);
-  }, [stockMetricsActive, searchedStocks, page, pageSize]);
+  }, [useServerScreener, stockMetricsActive, searchedStocks, page, pageSize]);
 
   const {
     metrics: stockMetrics,
@@ -276,24 +303,13 @@ export default function Page() {
     loading: stockMetricsLoading,
   } = useScreenerMetrics(stockSymbolsToLoad);
 
-  const enrichedStockPool = useMemo(() => {
-    if (!stockMetricsActive) return [];
-    return searchedStocks
-      .slice(0, MAX_STOCKS_FOR_MARKET_FILTER)
-      .map((s) => enrichStockRowFromMetrics(s, stockMetrics[s.sym]));
-  }, [stockMetricsActive, searchedStocks, stockMetrics]);
-
-  const filteredEnrichedStocks = useMemo(() => {
-    if (!stockMetricsActive) return enrichedStockPool;
-    return enrichedStockPool.filter((row) => passesStockFilters(row, appliedStock, quickFilters));
-  }, [stockMetricsActive, enrichedStockPool, appliedStock, quickFilters]);
-
   const sortedStocks = useMemo(() => {
-    const arr = stockMetricsActive ? [...filteredEnrichedStocks] : [...searchedStocks];
+    if (useServerScreener) return serverRows;
+    const arr = [...searchedStocks];
     if (sortField && sortOrder) {
       if (stockMetricsActive || !LIVE_STOCK_SORT_KEYS.has(sortField)) {
         const enriched = stockMetricsActive
-          ? arr
+          ? arr.map((s) => enrichStockRowFromMetrics(s, stockMetrics[s.sym]))
           : arr.map((s) => enrichStockRowFromMetrics(s, stockMetrics[s.sym]));
         enriched.sort((a, b) => compareStockRows(a, b, sortField, sortOrder));
         return enriched;
@@ -301,27 +317,60 @@ export default function Page() {
     }
     return arr;
   }, [
+    useServerScreener,
+    serverRows,
     stockMetricsActive,
-    filteredEnrichedStocks,
     searchedStocks,
     sortField,
     sortOrder,
     stockMetrics,
   ]);
 
-  const stockTotal = sortedStocks.length;
+  const stockTotal = useServerScreener ? serverTotal : sortedStocks.length;
   const stockTotalPages = Math.max(1, Math.ceil(stockTotal / pageSize));
   const stockPage = Math.min(Math.max(1, page), stockTotalPages);
   const stockQuoteStart = Math.max(0, (stockPage - 1) * pageSize);
 
   const displayedStocks = useMemo(() => {
-    const slice = sortedStocks.slice(stockQuoteStart, stockQuoteStart + pageSize);
+    const slice = useServerScreener
+      ? sortedStocks
+      : sortedStocks.slice(stockQuoteStart, stockQuoteStart + pageSize);
     return slice.map((s) => {
       const row = s.price != null ? s : enrichStockRowFromMetrics(s, stockMetrics[s.sym]);
       const badges = computeStockBadges(row).map((b) => b.id);
       return { ...row, badgeIds: badges };
     });
-  }, [sortedStocks, stockQuoteStart, pageSize, stockMetrics]);
+  }, [useServerScreener, sortedStocks, stockQuoteStart, pageSize, stockMetrics]);
+
+  const { quotes: stockPageQuotes } = useQuotes(
+    useServerScreener ? [] : stockSymbolsToLoad,
+    {
+      enabled: tab === SCREENER_TABS.STOCKS && !useServerScreener,
+    },
+  );
+
+  const displayedStocksWithQuotes = useMemo(() => {
+    if (useServerScreener) return displayedStocks;
+    return displayedStocks.map((row) => {
+      if (row.price != null) return row;
+      const q = stockPageQuotes[row.sym];
+      if (!q) return row;
+      return enrichStockRowFromMetrics(row, {
+        price: q.c,
+        chg: q.dp,
+        vol: q.vol,
+        volLabel: q.volLabel,
+        relVol: q.relVol,
+        mktCap: q.mktCap,
+        mktCapLabel: q.mktCapLabel,
+        pe: q.pe,
+        eps: q.eps,
+        epsGrowth: q.epsGrowth,
+        logo: q.logo,
+        longName: q.longName,
+      });
+    });
+  }, [useServerScreener, displayedStocks, stockPageQuotes]);
 
   const handleSort = (field) => {
     setPage(1);
@@ -500,12 +549,12 @@ export default function Page() {
 
   return (
     <DashboardPageShell>
-          {(stockMetricsError || etfQuotesError) && (
+          {(serverError || stockMetricsError || etfQuotesError) && (
             <div
               role="alert"
               className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive"
             >
-              Live data failed: {stockMetricsError || etfQuotesError}. Run the backend (e.g. npm run dev in
+              Live data failed: {serverError || stockMetricsError || etfQuotesError}. Run the backend (e.g. npm run dev in
               backend/) and set STOCKY_BACKEND_URL if the API is not on the default URL.
             </div>
           )}
@@ -543,18 +592,41 @@ export default function Page() {
             </TabsContent>
 
             <TabsContent value={SCREENER_TABS.STOCKS} className="mt-0 space-y-4">
-          {stockMetricsLoading && !stockMetricsError && (
+          {(serverLoading || stockMetricsLoading) && !serverError && !stockMetricsError && (
             <div className="text-xs text-muted-foreground">
-              {stockMetricsActive
-                ? `Loading Yahoo metrics to apply filters & badges (first ${MAX_STOCKS_FOR_MARKET_FILTER} rows)…`
+              {useServerScreener
+                ? `Scanning ${totalInStore.toLocaleString()} stocks in today's snapshot…`
                 : "Loading metrics for this page…"}
             </div>
           )}
-          {stockMetricsActive && !stockMetricsError && (
+          {useServerScreener && serverFromCache && serverFetching && !serverError && (
+            <div className="text-xs text-muted-foreground">
+              Showing cached results while refreshing…
+            </div>
+          )}
+          {useServerScreener && !serverLoading && !serverError && snapshotReady && (
             <div className="text-xs text-muted-foreground" role="status">
-              Filters & badges use live Yahoo Finance data. Applies to up to{" "}
-              <span className="font-medium tabular-nums">{MAX_STOCKS_FOR_MARKET_FILTER}</span> results in
-              current sort — narrow search to avoid missing symbols further down.
+              Filters apply across all{" "}
+              <span className="font-medium tabular-nums">{totalInStore.toLocaleString()}</span>{" "}
+              stocks in snapshot{" "}
+              {snapshotDate ? (
+                <>
+                  (<span className="font-medium">{snapshotDate}</span>)
+                </>
+              ) : null}
+              .{" "}
+              {serverTotal.toLocaleString()} match{serverTotal === 1 ? "" : "es"}.
+            </div>
+          )}
+          {useServerScreener && !serverLoading && !serverError && !snapshotReady && snapshotMessage && (
+            <div className="text-xs text-amber-600 dark:text-amber-400" role="status">
+              {snapshotMessage} Run{" "}
+              <code className="rounded bg-secondary/60 px-1">npm run build-snapshot</code> in backend.
+            </div>
+          )}
+          {(serverError || stockMetricsError) && (
+            <div className="text-xs text-destructive" role="alert">
+              {serverError || stockMetricsError}
             </div>
           )}
 
@@ -603,26 +675,26 @@ export default function Page() {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border/60 [&_tr]:border-border/60">
-                    {displayedStocks.map((s) => {
+                    {displayedStocksWithQuotes.map((s) => {
                       const up = (s.chg ?? 0) >= 0;
                       const epsUp = (s.epsGrowth ?? 0) >= 0;
                       return (
-                        <TableRow key={s.sym} className="hover:bg-secondary/30">
+                        <TableRow
+                          key={s.sym}
+                          className="cursor-pointer hover:bg-secondary/30"
+                          onClick={() => router.push(`/stock/${encodeURIComponent(s.sym)}`)}
+                        >
                           <TableCell className="w-9 px-2 py-3">
                             <FavoriteButton symbol={s.sym} size="sm" />
                           </TableCell>
                           <TableCell className="whitespace-nowrap px-4 py-3">
-                            <Link
-                              href={`/stock/${s.sym}`}
-                              className="flex items-center gap-3 hover:text-accent"
-                              onClick={(e) => e.stopPropagation()}
-                            >
+                            <div className="flex items-center gap-3">
                               <StockAvatar symbol={s.sym} src={s.logo} />
                               <div>
                                 <div className="font-medium">{s.sym}</div>
                                 <div className="text-xs text-muted-foreground">{s.name}</div>
                               </div>
-                            </Link>
+                            </div>
                           </TableCell>
                           <TableCell className="px-4 py-3">
                             <StockBadges badgeIds={s.badgeIds} />
@@ -675,7 +747,7 @@ export default function Page() {
                         </TableRow>
                       );
                     })}
-                    {displayedStocks.length === 0 && (
+                    {displayedStocksWithQuotes.length === 0 && (
                       <TableRow>
                         <TableCell
                           colSpan={11}

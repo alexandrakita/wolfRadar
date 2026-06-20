@@ -14,7 +14,7 @@ import { InsiderTransactionsTable } from "@/components/insider-transactions-tabl
 import { PriceChart } from "@/components/price-chart";
 import { StockAvatar } from "@/components/stock-avatar";
 import { STOCK_UNIVERSE } from "@/data/stock-universe";
-import { fetchStockBundle } from "@/services/api";
+import { fetchStockBundle, fetchWolfRating } from "@/services/api";
 import { cn } from "@/lib/utils";
 import {
   Bar,
@@ -24,8 +24,7 @@ import {
   formatBig,
   FundamentalsSections,
   Stat,
-  WolfRatingDial,
-  computeWolfRating,
+  WolfRatingCircle,
 } from "./stock-detail-blocks";
 
 export default function StockSymbolPage() {
@@ -40,12 +39,18 @@ export default function StockSymbolPage() {
     staleTime: 10_000,
   });
 
+  const { data: rating, isLoading: ratingLoading } = useQuery({
+    queryKey: ["wolf-rating", sym],
+    queryFn: () => fetchWolfRating(sym),
+    staleTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
   const meta = STOCK_UNIVERSE.find((r) => r.sym === sym);
   const profile = data?.profile ?? {};
   const quote = data?.quote ?? null;
   const name = profile.name || meta?.name || sym;
   const up = (quote?.dp ?? 0) >= 0;
-  const wolf = computeWolfRating(quote, data?.recommendation, data?.earnings);
 
   return (
     <DashboardPageShell>
@@ -116,7 +121,7 @@ export default function StockSymbolPage() {
                   </div>
                 ) : null}
               </div>
-              <WolfRatingDial value={wolf} />
+              <WolfRatingCircle rating={rating} isLoading={ratingLoading} />
             </div>
           </div>
         </section>

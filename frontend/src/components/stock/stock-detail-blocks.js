@@ -1,6 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function fmt(n) {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -45,33 +51,138 @@ export function Empty({
   return <div className="rounded-lg bg-secondary/30 px-3 py-6 text-center text-sm text-muted-foreground">{children}</div>;
 }
 
-// ---------- WolfRating placeholder ----------
-// Will be replaced with the user's custom formula.
-export function computeWolfRating(quote, rec, earnings) {
-  if (!quote && !rec?.length && !earnings?.length) return null;
-  let score = 50;
-  if (rec?.length) {
-    const r = rec[0];
-    const total = r.strongBuy + r.buy + r.hold + r.sell + r.strongSell || 1;
-    const bull = (r.strongBuy * 1 + r.buy * 0.5 - r.sell * 0.5 - r.strongSell * 1) / total;
-    score += bull * 30;
-  }
-  if (earnings?.length) {
-    const beats = earnings.filter(e => (e.surprisePercent ?? 0) > 0).length;
-    score += (beats / earnings.length - 0.5) * 20;
-  }
-  if (quote) score += Math.max(-5, Math.min(5, quote.dp));
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-export function WolfRatingDial({
-  value
-}) {
+const CATEGORY_ROWS = [
+  { key: "momentumRating", label: "Momentum" },
+  { key: "growthRating", label: "Growth / Fundamentals" },
+  { key: "sentimentRating", label: "Sentiment" },
+  { key: "activityRating", label: "Activity / Attention" },
+];
+
+function scoreColor(value) {
   const v = value ?? 0;
-  const color = v >= 70 ? "text-accent" : v >= 40 ? "text-amber-400" : "text-destructive";
+  if (v >= 70) return "text-accent";
+  if (v >= 40) return "text-amber-400";
+  return "text-destructive";
+}
+
+function WolfRatingBreakdown({ rating }) {
+  return (
+    <div className="space-y-3">
+      <div className="border-b border-border/60 pb-2">
+        <div className="text-sm font-semibold">Wolf Rating breakdown</div>
+        {rating.ratingDate ? (
+          <div className="text-[11px] text-muted-foreground">As of {rating.ratingDate}</div>
+        ) : null}
+      </div>
+      {CATEGORY_ROWS.map(({ key, label }) => {
+        const value = rating[key];
+        const pct = typeof value === "number" ? value : 0;
+        return (
+          <div key={key}>
+            <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+              <span className="text-muted-foreground">{label}</span>
+              <span className={cn("font-semibold tabular-nums", scoreColor(value))}>
+                {value ?? "—"}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Compact dial + label (no tooltip) — dashboard widgets. */
+export function WolfRatingDial({ value, label = "WolfRating" }) {
+  const v = value ?? 0;
   const ring = `conic-gradient(currentColor ${v * 3.6}deg, oklch(0.3 0.025 262) 0)`;
-  return <div className="flex items-center gap-3"><div className={cn("relative grid h-20 w-20 place-items-center rounded-full", color)} style={{
-      background: ring
-    }}><div className="grid h-16 w-16 place-items-center rounded-full bg-card"><span className="text-xl font-bold tabular-nums">{value ?? "—"}</span></div></div><div className="text-xs"><div className="font-semibold">{"WolfRating"}</div><div className="text-muted-foreground">{"0\u2013100 score"}</div></div></div>;
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          "relative grid h-20 w-20 place-items-center rounded-full",
+          typeof value === "number" ? scoreColor(value) : "text-muted-foreground",
+        )}
+        style={typeof value === "number" ? { background: ring } : undefined}
+      >
+        <div className="grid h-16 w-16 place-items-center rounded-full bg-card">
+          <span className="text-xl font-bold tabular-nums">{value ?? "—"}</span>
+        </div>
+      </div>
+      <div className="text-xs">
+        <div className="font-semibold">{label}</div>
+        <div className="text-muted-foreground">0–100 score</div>
+      </div>
+    </div>
+  );
+}
+
+/** Header Wolf Rating dial — hover for four category breakdown. */
+export function WolfRatingCircle({ rating, isLoading }) {
+  const value = rating?.wolfRating;
+  const display = isLoading && value == null ? "…" : (value ?? "—");
+  const v = typeof value === "number" ? value : 0;
+  const ring = `conic-gradient(currentColor ${v * 3.6}deg, oklch(0.3 0.025 262) 0)`;
+  const hasBreakdown =
+    rating &&
+    CATEGORY_ROWS.some(({ key }) => typeof rating[key] === "number");
+
+  const dial = (
+    <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          "relative grid h-20 w-20 shrink-0 place-items-center rounded-full",
+          typeof value === "number" ? scoreColor(value) : "text-muted-foreground",
+        )}
+        style={typeof value === "number" ? { background: ring } : undefined}
+      >
+        <div
+          className={cn(
+            "grid h-16 w-16 place-items-center rounded-full bg-card",
+            typeof value !== "number" && "border border-border/60",
+          )}
+        >
+          <span className="text-xl font-bold tabular-nums">{display}</span>
+        </div>
+      </div>
+      <div className="text-xs">
+        <div className="font-semibold">WolfRating</div>
+        <div className="text-muted-foreground">0–100 score</div>
+      </div>
+    </div>
+  );
+
+  if (!hasBreakdown) return dial;
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="cursor-help rounded-xl text-left outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
+            aria-label="Wolf Rating breakdown"
+          >
+            {dial}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="left"
+          align="center"
+          sideOffset={8}
+          className="w-72 border border-border/60 bg-popover p-4 text-popover-foreground shadow-xl"
+        >
+          <WolfRatingBreakdown rating={rating} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 // ---------- Yahoo Fundamentals ----------

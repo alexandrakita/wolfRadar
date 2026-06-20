@@ -4,7 +4,7 @@ export const STOCKS = STOCK_UNIVERSE;
 
 export const QUOTE_BUFFER = 25;
 
-/** When stock metrics filters are on, load this many rows (sorted) before filtering. */
+/** @deprecated Screener filters now use server-side SQLite snapshot (full universe). */
 export const MAX_STOCKS_FOR_MARKET_FILTER = 500;
 
 const COUNTRIES = [
