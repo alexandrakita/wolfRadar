@@ -24,7 +24,10 @@ import { StockAvatar } from "@/components/stock-avatar";
 import {
   buildScreenerSearchParams,
   DEFAULT_SCREENER_LIMIT,
+  hasMeaningfulScreenerParams,
   parseScreenerSearchParams,
+  readStoredScreenerParams,
+  writeStoredScreenerParams,
 } from "@/utils/screener-search-params";
 import { SCREENER_TABS } from "@/constants/screener";
 import {
@@ -74,6 +77,7 @@ export default function Page() {
   const searchParams = useSearchParams();
   const searchParamsKey = searchParams.toString();
   const isUpdatingUrl = useRef(false);
+  const hydratedFromUrl = useRef(false);
   const initialUrl = parseScreenerSearchParams(searchParams);
 
   const [tab, setTab] = useState(initialUrl.tab);
@@ -123,7 +127,25 @@ export default function Page() {
 
   useEffect(() => {
     if (isUpdatingUrl.current) return;
-    const parsed = parseScreenerSearchParams(searchParamsRef.current);
+
+    let params = searchParamsRef.current;
+    const currentQuery = params.toString();
+
+    if (!hasMeaningfulScreenerParams(params)) {
+      const stored = readStoredScreenerParams();
+      if (stored && stored !== currentQuery) {
+        params = new URLSearchParams(stored);
+        isUpdatingUrl.current = true;
+        router.replace(`${pathname}?${stored}`, { scroll: false });
+        setTimeout(() => {
+          isUpdatingUrl.current = false;
+        }, 100);
+      }
+    } else {
+      writeStoredScreenerParams(currentQuery);
+    }
+
+    const parsed = parseScreenerSearchParams(params);
     setTab(parsed.tab);
     setQuickSearch(parsed.q);
     setSearchForUrl(parsed.q);
@@ -137,7 +159,8 @@ export default function Page() {
     setDraftStock(parsed.appliedStock);
     setDraftEtf(parsed.appliedEtf);
     setQuickFilters(parsed.quickFilters ?? []);
-  }, [searchParamsKey]);
+    hydratedFromUrl.current = true;
+  }, [searchParamsKey, pathname, router]);
 
   useEffect(() => {
     const handle = setTimeout(() => setSearchForUrl(quickSearch), 280);
@@ -145,6 +168,8 @@ export default function Page() {
   }, [quickSearch]);
 
   useEffect(() => {
+    if (!hydratedFromUrl.current) return;
+
     const id = setTimeout(() => {
       const s = urlStateRef.current;
       const params = buildScreenerSearchParams({
@@ -161,6 +186,7 @@ export default function Page() {
       });
       const next = params.toString();
       const cur = searchParamsRef.current.toString();
+      writeStoredScreenerParams(next);
       if (next === cur) return;
 
       isUpdatingUrl.current = true;

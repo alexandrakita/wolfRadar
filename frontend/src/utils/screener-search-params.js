@@ -22,6 +22,47 @@ export {
   ETF_SORT_KEYS,
 } from "@/constants/screener";
 
+export const SCREENER_STATE_STORAGE_KEY = "wolfradar:screener:params";
+
+/** @param {URLSearchParams | ReadonlyURLSearchParams | string} source */
+export function hasMeaningfulScreenerParams(source) {
+  const parsed = parseScreenerSearchParams(source);
+  return (
+    (parsed.quickFilters?.length ?? 0) > 0 ||
+    Object.keys(parsed.appliedStock).length > 0 ||
+    Object.keys(parsed.appliedEtf).length > 0 ||
+    !!parsed.q?.trim() ||
+    !!parsed.index ||
+    parsed.page !== 1 ||
+    parsed.limit !== DEFAULT_SCREENER_LIMIT ||
+    !!(parsed.sortField && parsed.sortOrder)
+  );
+}
+
+export function readStoredScreenerParams() {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(SCREENER_STATE_STORAGE_KEY);
+    return raw?.trim() ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {string} queryString */
+export function writeStoredScreenerParams(queryString) {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (!queryString?.trim()) {
+      sessionStorage.removeItem(SCREENER_STATE_STORAGE_KEY);
+      return;
+    }
+    sessionStorage.setItem(SCREENER_STATE_STORAGE_KEY, queryString);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 function sanitizeApplied(raw, whitelist) {
   if (!raw || typeof raw !== "object") return {};
   const out = {};
