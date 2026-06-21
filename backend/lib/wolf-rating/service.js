@@ -1,3 +1,4 @@
+import { useRedisSnapshotRead } from "../config.js";
 import { loadWolfRatingInputs, getOfficialRatingDate } from "./data-loader.js";
 import {
   computeCategories,
@@ -30,6 +31,31 @@ async function mapPool(items, worker, concurrency = BATCH_CONCURRENCY) {
   return out;
 }
 
+/** @param {Record<string, unknown>} row @param {string} ratingDate */
+function ratingFromSnapshotRow(row, ratingDate) {
+  return {
+    wolfRating: row.wolf_rating ?? row.wolfRating ?? null,
+    momentumRating: row.momentum_rating ?? row.momentumRating ?? null,
+    growthRating: row.growth_rating ?? row.growthRating ?? null,
+    sentimentRating: row.sentiment_rating ?? row.sentimentRating ?? null,
+    activityRating: row.activity_rating ?? row.activityRating ?? null,
+    symbol: row.symbol,
+    ratingDate,
+  };
+}
+
+/**
+ * @param {string} ratingDate
+ * @param {string} sym
+ * @returns {Promise<object | null>}
+ */
+async function readCachedSnapshotRating(ratingDate, sym) {
+  const { readRatingRow } = await import("../screener-snapshot/store-facade.js");
+  const row = await readRatingRow(ratingDate, sym);
+  if (!row || row.wolf_rating == null) return null;
+  return ratingFromSnapshotRow(row, ratingDate);
+}
+
 /**
  * @param {string} symbol
  * @param {{ debug?: boolean, force?: boolean }} [opts]
@@ -43,6 +69,11 @@ export async function getWolfRating(symbol, opts = {}) {
   const ratingDate = getOfficialRatingDate();
 
   if (!opts.force) {
+    const snapshotRating = await readCachedSnapshotRating(ratingDate, sym);
+    if (snapshotRating?.wolfRating != null) {
+      return snapshotRating;
+    }
+
     const cached = await readRating(ratingDate, sym);
     if (cached) {
       return opts.debug ? cached : stripDebug(cached);
@@ -108,25 +139,20 @@ export async function getWolfPicks(minScore = 70) {
   const ratingDate = getOfficialRatingDate();
 
   try {
-    const { readWolfPicksFromSnapshot } = await import("../screener-snapshot/store.js");
-    const { dbRowToApiRow } = await import("../screener-snapshot/row-mapper.js");
-    const rows = readWolfPicksFromSnapshot(ratingDate, minScore);
+    const { readWolfPicksFromSnapshot } = await import("../screener-snapshot/store-facade.js");
+    const rows = await readWolfPicksFromSnapshot(ratingDate, minScore);
     if (rows.length > 0) {
       /** @type {Record<string, object>} */
       const ratings = {};
       for (const row of rows) {
-        const api = dbRowToApiRow(row);
-        ratings[row.symbol] = {
-          wolfRating: api.wolfRating,
-          momentumRating: api.momentumRating,
-          growthRating: api.growthRating,
-          sentimentRating: api.sentimentRating,
-          activityRating: api.activityRating,
-          symbol: row.symbol,
-          ratingDate,
-        };
+        ratings[row.symbol] = ratingFromSnapshotRow(row, ratingDate);
       }
-      return { ratingDate, minScore, ratings, source: "snapshot" };
+      return {
+        ratingDate,
+        minScore,
+        ratings,
+        source: useRedisSnapshotRead() ? "redis" : "snapshot",
+      };
     }
   } catch {
     // fall through to JSON store
@@ -139,6 +165,50 @@ export async function getWolfPicks(minScore = 70) {
 /** Cached lookup for symbol list — no compute. */
 export async function getCachedWolfRatings(symbols) {
   const ratingDate = getOfficialRatingDate();
+
+  if (useRedisSnapshotRead()) {
+    const { readRatingsBatch: readRedisBatch } = await import("../screener-snapshot/redis-store.js");
+    const ratings = await readRedisBatch(ratingDate, symbols);
+    return { ratingDate, ratings, source: "redis" };
+  }
+
+  try {
+    const { readRatingRow } = await import("../screener-snapshot/store-facade.js");
+    /** @type {Record<string, object | null>} */
+    const ratings = {};
+    for (const sym of symbols) {
+      const row = await readRatingRow(ratingDate, sym);
+      ratings[sym] = row?.wolf_rating != null ? ratingFromSnapshotRow(row, ratingDate) : null;
+    }
+    if (Object.values(ratings).some(Boolean)) {
+      return { ratingDate, ratings, source: "snapshot" };
+    }
+  } catch {
+    // fall through
+  }
+
   const ratings = await readRatingsBatch(ratingDate, symbols);
-  return { ratingDate, ratings };
+  return { ratingDate, ratings, source: "json" };
+}
+
+/** Top ratings from snapshot (Redis/SQLite) or JSON fallback. */
+export async function getTopRatings(limit = 20) {
+  const ratingDate = getOfficialRatingDate();
+
+  try {
+    const { readWolfPicksFromSnapshot } = await import("../screener-snapshot/store-facade.js");
+    const rows = await readWolfPicksFromSnapshot(ratingDate, 0);
+    if (rows.length > 0) {
+      return rows
+        .filter((r) => r.wolf_rating != null)
+        .sort((a, b) => (b.wolf_rating ?? 0) - (a.wolf_rating ?? 0))
+        .slice(0, limit)
+        .map((row) => ratingFromSnapshotRow(row, ratingDate));
+    }
+  } catch {
+    // fall through
+  }
+
+  const { readTopRatings } = await import("./store.js");
+  return readTopRatings(ratingDate, limit);
 }

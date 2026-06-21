@@ -1,0 +1,65 @@
+# Vercel backend deploy (Redis snapshot mode)
+
+Deploy the **backend** folder as a separate Vercel project. The frontend (Next.js) stays on Vercel with `STOCKY_BACKEND_URL` pointing at this API.
+
+## 1. Upstash Redis
+
+1. Create a database at https://upstash.com (free tier is enough for testing).
+2. Copy **REST URL** and **REST TOKEN**.
+
+## 2. Vercel project (backend)
+
+- **Root directory:** `backend`
+- **Framework preset:** Other
+- **Build command:** (leave empty)
+- **Output directory:** (leave empty)
+
+### Environment variables
+
+| Variable | Value |
+|----------|--------|
+| `SNAPSHOT_STORE` | `redis` |
+| `UPSTASH_REDIS_REST_URL` | from Upstash |
+| `UPSTASH_REDIS_REST_TOKEN` | from Upstash |
+| `NODE_ENV` | `production` |
+
+Do **not** rely on SQLite on Vercel — the API reads precomputed rows from Redis only.
+
+## 3. Frontend (existing Vercel project)
+
+Set:
+
+```
+STOCKY_BACKEND_URL=https://your-backend.vercel.app
+```
+
+Redeploy frontend so `/api/*` rewrites proxy to the backend.
+
+## 4. Fill Redis (local Mac or GitHub Actions)
+
+After `npm run build-snapshot` on a machine with SQLite:
+
+```bash
+cd backend
+PUBLISH_REDIS=1 npm run publish-redis
+# or SNAPSHOT_STORE=both npm run build-snapshot
+```
+
+Or use the GitHub Actions workflow `.github/workflows/daily-snapshot.yml` (add repo secrets `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`).
+
+## 5. Verify
+
+```bash
+curl https://your-backend.vercel.app/api/health
+curl https://your-backend.vercel.app/api/screener/status
+curl -X POST https://your-backend.vercel.app/api/screener/query \
+  -H 'Content-Type: application/json' \
+  -d '{"quickFilters":["wolfPicks"],"pageSize":5}'
+```
+
+## Local dev (unchanged)
+
+```bash
+cd backend && npm run dev          # SNAPSHOT_STORE=sqlite (default)
+cd frontend && npm run dev         # proxies /api → localhost:3333
+```

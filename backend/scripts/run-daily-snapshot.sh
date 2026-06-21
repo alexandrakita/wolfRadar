@@ -57,6 +57,18 @@ EXIT=$?
 set -e
 
 if [[ $EXIT -eq 0 ]]; then
+  if [[ -n "${UPSTASH_REDIS_REST_URL:-}" && -n "${UPSTASH_REDIS_REST_TOKEN:-}" ]]; then
+    log "Publishing snapshot to Redis…"
+    set +e
+    npm run publish-redis >>"$LOG_FILE" 2>&1
+    PUB_EXIT=$?
+    set -e
+    if [[ $PUB_EXIT -eq 0 ]]; then
+      log "=== Redis publish OK ==="
+    else
+      log "=== Redis publish FAILED (exit $PUB_EXIT) — see $LOG_FILE ==="
+    fi
+  fi
   log "=== snapshot finished OK ==="
 else
   log "=== snapshot FAILED (exit $EXIT) — see $LOG_FILE ==="

@@ -10,7 +10,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const snapshotDate =
       typeof req.query.date === "string" ? req.query.date.slice(0, 10) : undefined;
-    res.json(getScreenerStatus(snapshotDate));
+    res.json(await getScreenerStatus(snapshotDate));
   }),
 );
 
@@ -18,7 +18,7 @@ router.post(
   "/query",
   asyncRoute(async (req, res) => {
     const body = req.body ?? {};
-    const payload = queryScreener({
+    const payload = await queryScreener({
       filters: body.filters ?? body.appliedStock ?? {},
       quickFilters: body.quickFilters ?? [],
       q: body.q ?? body.search ?? "",

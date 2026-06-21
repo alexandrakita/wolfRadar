@@ -5,11 +5,11 @@ import { HttpError } from "../lib/http-error.js";
 import { getOfficialRatingDate } from "../lib/wolf-rating/data-loader.js";
 import {
   getCachedWolfRatings,
+  getTopRatings,
   getWolfPicks,
   getWolfRating,
   getWolfRatingsBatch,
 } from "../lib/wolf-rating/service.js";
-import { readTopRatings } from "../lib/wolf-rating/store.js";
 import { normSym, sanitizeSymbols } from "../lib/yahoo.js";
 
 const router = express.Router();
@@ -34,7 +34,7 @@ router.get(
   asyncRoute(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 5), 50);
     const ratingDate = getOfficialRatingDate();
-    const rows = await readTopRatings(ratingDate, limit);
+    const rows = await getTopRatings(limit);
     res.json({ ratingDate, rows });
   }),
 );

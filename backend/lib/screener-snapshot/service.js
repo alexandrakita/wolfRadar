@@ -6,7 +6,7 @@ import {
   countWolfPicks,
   getSnapshotMeta,
   readAllSnapshotRows,
-} from "./store.js";
+} from "./store-facade.js";
 
 function compareRows(a, b, field, order) {
   const mul = order === "asc" ? 1 : -1;
@@ -64,7 +64,7 @@ function compareRows(a, b, field, order) {
  *   snapshotDate?: string,
  * }} input
  */
-export function queryScreener(input = {}) {
+export async function queryScreener(input = {}) {
   const snapshotDate = input.snapshotDate ?? getOfficialRatingDate();
   const filters = input.filters ?? {};
   const quickFilters = Array.isArray(input.quickFilters) ? input.quickFilters : [];
@@ -74,7 +74,7 @@ export function queryScreener(input = {}) {
   const page = Math.max(1, Number(input.page) || 1);
   const pageSize = Math.min(200, Math.max(1, Number(input.pageSize) || 50));
 
-  const totalInStore = countSnapshotRows(snapshotDate);
+  const totalInStore = await countSnapshotRows(snapshotDate);
   if (totalInStore === 0) {
     return {
       snapshotDate,
@@ -84,11 +84,13 @@ export function queryScreener(input = {}) {
       pageSize,
       rows: [],
       ready: false,
-      message: "No screener snapshot for today. Run npm run build-snapshot in backend.",
+      message:
+        "No screener snapshot available. Run npm run build-snapshot then npm run publish-redis.",
+      store: process.env.SNAPSHOT_STORE ?? "sqlite",
     };
   }
 
-  const dbRows = readAllSnapshotRows(snapshotDate);
+  const dbRows = await readAllSnapshotRows(snapshotDate);
   let rows = dbRows.map((r) => dbRowToApiRow(r));
 
   rows = rows.filter((row) => passesSearch(row, q));
@@ -112,14 +114,15 @@ export function queryScreener(input = {}) {
     pageSize,
     rows: paged,
     ready: true,
+    store: process.env.SNAPSHOT_STORE ?? "sqlite",
   };
 }
 
-export function getScreenerStatus(snapshotDate) {
+export async function getScreenerStatus(snapshotDate) {
   const date = snapshotDate ?? getOfficialRatingDate();
-  const meta = getSnapshotMeta(date);
-  const rowCount = countSnapshotRows(date);
-  const picksCount = countWolfPicks(date, 70);
+  const meta = await getSnapshotMeta(date);
+  const rowCount = await countSnapshotRows(date);
+  const picksCount = await countWolfPicks(date, 70);
 
   return {
     snapshotDate: date,
@@ -127,5 +130,6 @@ export function getScreenerStatus(snapshotDate) {
     picksCount,
     meta,
     ready: rowCount > 0,
+    store: process.env.SNAPSHOT_STORE ?? "sqlite",
   };
 }

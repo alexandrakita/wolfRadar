@@ -26,6 +26,11 @@ try {
 
   const count = countSnapshotRows(result.snapshotDate);
   console.log(`\nDone — ${count} rows stored for ${result.snapshotDate}`);
+  if (result.redisPublish) {
+    console.log(
+      `Redis — ${result.redisPublish.rowCount} rows, ${result.redisPublish.picksCount} Wolf Picks`,
+    );
+  }
 } finally {
   closeDb();
 }

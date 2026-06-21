@@ -7,10 +7,12 @@
     "start": "node index.js",
     "recalc-ratings": "node scripts/recalc-wolf-ratings.js",
     "build-snapshot": "node scripts/build-screener-snapshot.js",
+    "publish-redis": "node scripts/publish-snapshot-to-redis.js",
     "daily-snapshot": "bash scripts/run-daily-snapshot.sh",
     "bootstrap-snapshot": "node scripts/bootstrap-snapshot.js"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",

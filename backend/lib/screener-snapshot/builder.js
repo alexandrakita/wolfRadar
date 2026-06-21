@@ -1,10 +1,14 @@
 import { loadSymbolMetrics } from "../screener-metrics.js";
+import { useRedisSnapshotWrite } from "../config.js";
 import { getOfficialRatingDate } from "../wolf-rating/data-loader.js";
 import { getWolfRating } from "../wolf-rating/service.js";
 import { buildSnapshotRecord } from "./row-mapper.js";
+import { publishSnapshotToRedis } from "./store-facade.js";
 import {
   hasSnapshotRow,
   incrementSnapshotProgress,
+  readAllSnapshotRows,
+  getSnapshotMeta,
   startSnapshotMeta,
   updateSnapshotMeta,
   upsertSnapshotRow,
@@ -93,9 +97,24 @@ export async function buildFullSnapshot(opts = {}) {
   updateSnapshotMeta(snapshotDate, { completed: true });
   report();
 
+  let redisPublish = null;
+  if (useRedisSnapshotWrite()) {
+    try {
+      const rows = readAllSnapshotRows(snapshotDate);
+      const meta = getSnapshotMeta(snapshotDate) ?? {};
+      redisPublish = await publishSnapshotToRedis(snapshotDate, rows, meta);
+      console.log(
+        `[snapshot] Redis publish: ${redisPublish.rowCount} rows, ${redisPublish.picksCount} picks`,
+      );
+    } catch (e) {
+      console.error("[snapshot] Redis publish failed:", /** @type {Error} */ (e).message);
+    }
+  }
+
   return {
     snapshotDate,
     total: allSymbols.length,
     rowCount: allSymbols.length,
+    redisPublish,
   };
 }
