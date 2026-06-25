@@ -75,10 +75,10 @@ export async function buildSymbolSnapshot(sym, snapshotDate, opts = {}) {
 }
 
 /**
- * @param {{ force?: boolean, symbols?: string[], concurrency?: number, onProgress?: (info: object) => void }} [opts]
+ * @param {{ force?: boolean, symbols?: string[], snapshotDate?: string, concurrency?: number, onProgress?: (info: object) => void }} [opts]
  */
 export async function buildFullSnapshot(opts = {}) {
-  const snapshotDate = getOfficialRatingDate();
+  const snapshotDate = opts.snapshotDate ?? getOfficialRatingDate();
   const allSymbols = opts.symbols?.length
     ? opts.symbols.map((s) => String(s).trim().toUpperCase()).filter(Boolean)
     : loadUniverseSymbols();

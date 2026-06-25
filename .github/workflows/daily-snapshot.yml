@@ -2,7 +2,7 @@ name: Daily screener snapshot
 
 on:
   schedule:
-    # 11:00 UTC Mon–Fri (after US market data settles)
+    # 11:00 UTC Mon–Fri (~6 AM US Eastern, before market open; SNAPSHOT_DATE pinned at job start)
     - cron: "0 11 * * 1-5"
   workflow_dispatch:
 
@@ -25,6 +25,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Pin snapshot date
+        run: |
+          DATE=$(node --input-type=module -e "import { getOfficialRatingDate } from './lib/wolf-rating/data-loader.js'; console.log(getOfficialRatingDate());")
+          echo "SNAPSHOT_DATE=$DATE" >> "$GITHUB_ENV"
+          echo "Pinned snapshot date: $DATE"
 
       - name: Build screener snapshot (SQLite, ephemeral)
         run: npm run build-snapshot

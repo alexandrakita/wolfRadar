@@ -8,14 +8,21 @@ import { getOfficialRatingDate } from "../lib/wolf-rating/data-loader.js";
 
 const args = process.argv.slice(2);
 const force = args.includes("--force");
-const symbols = args.filter((a) => !a.startsWith("--"));
+const dateArg = args.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
+const symbols = args.filter((a) => !a.startsWith("--") && !/^\d{4}-\d{2}-\d{2}$/.test(a));
 
-console.log(`Screener snapshot — official date ${getOfficialRatingDate()}`);
+if (dateArg) process.env.SNAPSHOT_DATE = dateArg;
+
+const snapshotDate = getOfficialRatingDate();
+console.log(`Screener snapshot — official date ${snapshotDate}`);
 if (force) console.log("Force mode: recomputing all symbols");
+
+let exitCode = 0;
 
 try {
   const result = await buildFullSnapshot({
     force,
+    snapshotDate,
     symbols: symbols.length ? symbols : undefined,
     onProgress: ({ processed, total }) => {
       if (processed % 100 === 0) {
@@ -26,6 +33,10 @@ try {
 
   const count = countSnapshotRows(result.snapshotDate);
   console.log(`\nDone — ${count} rows stored for ${result.snapshotDate}`);
+  if (count === 0) {
+    console.error(`No rows stored for ${result.snapshotDate}. Build failed.`);
+    exitCode = 1;
+  }
   if (result.redisPublish) {
     console.log(
       `Redis — ${result.redisPublish.rowCount} rows, ${result.redisPublish.picksCount} Wolf Picks`,
@@ -34,3 +45,5 @@ try {
 } finally {
   closeDb();
 }
+
+process.exit(exitCode);

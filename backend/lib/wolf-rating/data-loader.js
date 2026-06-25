@@ -340,6 +340,9 @@ export async function loadWolfRatingInputs(symbol) {
 
 /** Latest completed US trading session date (YYYY-MM-DD). */
 export function getOfficialRatingDate() {
+  const pinned = String(process.env.SNAPSHOT_DATE ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(pinned)) return pinned;
+
   const now = new Date();
   const day = now.getUTCDay();
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
