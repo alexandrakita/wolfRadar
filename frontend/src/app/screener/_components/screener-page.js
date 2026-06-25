@@ -858,7 +858,11 @@ export default function Page() {
                     {displayedEtfs.map((e) => {
                       const up = (e.chg ?? 0) >= 0;
                       return (
-                        <TableRow key={e.sym} className="hover:bg-secondary/30">
+                        <TableRow
+                          key={e.sym}
+                          className="cursor-pointer hover:bg-secondary/30"
+                          onClick={() => router.push(`/stock/${encodeURIComponent(e.sym)}`)}
+                        >
                           <TableCell className="whitespace-nowrap px-4 py-3">
                             <div className="flex items-center gap-3">
                               <StockAvatar symbol={e.sym} src={e.logo} />
