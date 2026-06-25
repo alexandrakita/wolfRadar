@@ -47,6 +47,7 @@ import {
   fmtVolLike,
   formatChip,
   numericRangeMatches,
+  overlayLiveQuote,
 } from "@/utils/screener-table";
 import {
   formatFilterChip,
@@ -368,19 +369,23 @@ export default function Page() {
     });
   }, [useServerScreener, sortedStocks, stockQuoteStart, pageSize, stockMetrics]);
 
-  const { quotes: stockPageQuotes } = useQuotes(
-    useServerScreener ? [] : stockSymbolsToLoad,
-    {
-      enabled: tab === SCREENER_TABS.STOCKS && !useServerScreener,
-    },
-  );
+  const liveQuoteSymbols = useMemo(() => {
+    if (useServerScreener) {
+      return displayedStocks.map((s) => s.sym).filter(Boolean);
+    }
+    return stockSymbolsToLoad;
+  }, [useServerScreener, displayedStocks, stockSymbolsToLoad]);
+
+  const { quotes: stockPageQuotes } = useQuotes(liveQuoteSymbols, {
+    enabled: tab === SCREENER_TABS.STOCKS && liveQuoteSymbols.length > 0,
+  });
 
   const displayedStocksWithQuotes = useMemo(() => {
-    if (useServerScreener) return displayedStocks;
     return displayedStocks.map((row) => {
-      if (row.price != null) return row;
       const q = stockPageQuotes[row.sym];
       if (!q) return row;
+      if (useServerScreener) return overlayLiveQuote(row, q);
+      if (row.price != null) return row;
       return enrichStockRowFromMetrics(row, {
         price: q.c,
         chg: q.dp,

@@ -120,6 +120,31 @@ export function enrichStockRow(s, q) {
   return enrichStockRowFromMetrics(s, q);
 }
 
+/**
+ * Overlay live quote fields on a row without touching snapshot perf / Wolf Rating fields.
+ * Used when filtered screener rows come from the daily snapshot but prices should stay live.
+ */
+export function overlayLiveQuote(row, q) {
+  if (!row || !q) return row;
+  const mktCapNum = q.mktCap ?? row.mktCapNum ?? null;
+  const volNum = q.vol ?? row.volNum ?? null;
+  return {
+    ...row,
+    price: q.c ?? row.price,
+    chg: q.dp ?? row.chg,
+    vol: q.volLabel ?? fmtVolLike(volNum) ?? row.vol,
+    volNum: volNum ?? row.volNum,
+    relVol: q.relVol ?? row.relVol,
+    mktCap: q.mktCapLabel ?? formatMktCapLabel(mktCapNum) ?? row.mktCap,
+    mktCapNum: mktCapNum ?? row.mktCapNum,
+    pe: q.pe ?? row.pe,
+    eps: q.eps ?? row.eps,
+    epsGrowth: q.epsGrowth ?? row.epsGrowth,
+    logo: q.logo ?? row.logo,
+    name: q.longName ?? row.name,
+  };
+}
+
 /** Full enrichment from screener metrics or quote fallback */
 export function enrichStockRowFromMetrics(s, m) {
   const mktCapNum = m?.mktCap ?? null;
