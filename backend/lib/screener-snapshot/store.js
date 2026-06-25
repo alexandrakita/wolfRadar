@@ -87,6 +87,44 @@ export function countSnapshotRows(snapshotDate) {
 }
 
 /** @param {string} snapshotDate @param {string} symbol */
+export function snapshotRowHasPerf(snapshotDate, symbol) {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT perf_1m, perf_3m FROM screener_snapshot WHERE snapshot_date = ? AND symbol = ? LIMIT 1`,
+    )
+    .get(snapshotDate, symbol);
+  if (!row) return false;
+  return row.perf_1m != null && row.perf_3m != null;
+}
+
+/** @param {string} snapshotDate */
+export function listSnapshotSymbolsMissingPerf(snapshotDate) {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT symbol FROM screener_snapshot
+       WHERE snapshot_date = ?
+         AND (perf_1m IS NULL OR perf_3m IS NULL)
+       ORDER BY symbol ASC`,
+    )
+    .all(snapshotDate)
+    .map((r) => String(r.symbol));
+}
+
+/** @param {string} snapshotDate */
+export function countSnapshotRowsWithPerf(snapshotDate) {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM screener_snapshot
+       WHERE snapshot_date = ? AND perf_1m IS NOT NULL AND perf_3m IS NOT NULL`,
+    )
+    .get(snapshotDate);
+  return Number(row?.c ?? 0);
+}
+
+/** @param {string} snapshotDate @param {string} symbol */
 export function hasSnapshotRow(snapshotDate, symbol) {
   const db = getDb();
   const row = db

@@ -109,21 +109,59 @@ function metricsComplete(data) {
   return data != null && data.price != null && Number.isFinite(data.price);
 }
 
-export async function loadSymbolMetrics(sym) {
-  return cached(
-    `screener:${sym}`,
-    METRICS_TTL,
-    async () => {
-    const [qsResult, chartResult] = await Promise.allSettled([
-      withYahooRetry(() =>
-        yahooFinance.quoteSummary(
-          sym,
-          {
-            modules: ["summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "price"],
-          },
-          { validateResult: false },
-        ),
-      ),
+function snapshotMetricsComplete(data) {
+  return (
+    metricsComplete(data) &&
+    data.perf1M != null &&
+    Number.isFinite(data.perf1M) &&
+    data.perf3M != null &&
+    Number.isFinite(data.perf3M)
+  );
+}
+
+function chartPointsFromQuotes(quotes) {
+  return (quotes ?? [])
+    .filter((q) => q.close != null && Number.isFinite(q.close))
+    .map((q) => ({
+      t: q.date instanceof Date ? q.date.getTime() : new Date(q.date).getTime(),
+      c: q.close,
+    }));
+}
+
+/** Retry empty chart responses — Yahoo often rate-limits without throwing. */
+async function fetchChartPoints(sym, { attempts = 5, delayMs = 600 } = {}) {
+  let lastPoints = [];
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await withYahooRetry(
+        () =>
+          yahooFinance.chart(sym, {
+            period1: new Date(Date.now() - 370 * 86_400_000),
+            period2: new Date(),
+            interval: "1d",
+          }),
+        { attempts: 3, delayMs: 800 },
+      );
+      lastPoints = chartPointsFromQuotes(res?.quotes ?? []);
+      if (lastPoints.length >= 2) return lastPoints;
+    } catch (e) {
+      console.warn(`[screener-metrics] ${sym} chart attempt ${i + 1} failed:`, /** @type {Error} */ (e).message);
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => {
+        setTimeout(r, delayMs * (i + 1));
+      });
+    }
+  }
+  return lastPoints;
+}
+
+async function loadSymbolMetricsPayload(sym, { snapshot = false } = {}) {
+  let points = [];
+  if (snapshot) {
+    points = await fetchChartPoints(sym);
+  } else {
+    const chartResult = await Promise.allSettled([
       withYahooRetry(() =>
         yahooFinance.chart(sym, {
           period1: new Date(Date.now() - 370 * 86_400_000),
@@ -132,92 +170,125 @@ export async function loadSymbolMetrics(sym) {
         }),
       ),
     ]);
+    points =
+      chartResult[0].status === "fulfilled"
+        ? chartPointsFromQuotes(chartResult[0].value?.quotes ?? [])
+        : [];
+  }
 
-    const qs = qsResult.status === "fulfilled" ? qsResult.value : {};
-    const sd = qs.summaryDetail ?? {};
-    const fd = qs.financialData ?? {};
-    const ks = qs.defaultKeyStatistics ?? {};
-    const ap = qs.assetProfile ?? {};
-    const pr = qs.price ?? {};
+  const qs = await withYahooRetry(
+    () =>
+      yahooFinance.quoteSummary(
+        sym,
+        {
+          modules: ["summaryDetail", "financialData", "defaultKeyStatistics", "assetProfile", "price"],
+        },
+        { validateResult: false },
+      ),
+    { attempts: 3, delayMs: snapshot ? 800 : 400 },
+  );
 
-    const chartQuotes =
-      chartResult.status === "fulfilled" ? (chartResult.value?.quotes ?? []) : [];
-    const points = chartQuotes
-      .filter((q) => q.close != null && Number.isFinite(q.close))
-      .map((q) => ({
-        t: q.date instanceof Date ? q.date.getTime() : new Date(q.date).getTime(),
-        c: q.close,
-      }));
+  const sd = qs.summaryDetail ?? {};
+  const fd = qs.financialData ?? {};
+  const ks = qs.defaultKeyStatistics ?? {};
+  const ap = qs.assetProfile ?? {};
+  const pr = qs.price ?? {};
 
-    const price = n(pr.regularMarketPrice) ?? n(fd.currentPrice);
-    const perf = computePerformance(points);
+  const price = n(pr.regularMarketPrice) ?? n(fd.currentPrice);
+  const perf = computePerformance(points);
 
-    const fiftyTwoWeekHigh = n(sd.fiftyTwoWeekHigh);
-    const fiftyTwoWeekLow = n(sd.fiftyTwoWeekLow);
-    const high52wProximity =
-      price != null && fiftyTwoWeekHigh != null && fiftyTwoWeekHigh > 0
-        ? (price / fiftyTwoWeekHigh) * 100
-        : null;
-    const low52wProximity =
-      price != null && fiftyTwoWeekLow != null && fiftyTwoWeekLow > 0
-        ? (price / fiftyTwoWeekLow) * 100
-        : null;
+  const fiftyTwoWeekHigh = n(sd.fiftyTwoWeekHigh);
+  const fiftyTwoWeekLow = n(sd.fiftyTwoWeekLow);
+  const high52wProximity =
+    price != null && fiftyTwoWeekHigh != null && fiftyTwoWeekHigh > 0
+      ? (price / fiftyTwoWeekHigh) * 100
+      : null;
+  const low52wProximity =
+    price != null && fiftyTwoWeekLow != null && fiftyTwoWeekLow > 0
+      ? (price / fiftyTwoWeekLow) * 100
+      : null;
 
-    const trailingEps = n(ks.trailingEps);
-    const forwardEps = n(ks.forwardEps);
-    let epsGrowth = null;
-    if (trailingEps != null && forwardEps != null && Math.abs(trailingEps) > 1e-9) {
-      epsGrowth = ((forwardEps - trailingEps) / Math.abs(trailingEps)) * 100;
-    }
+  const trailingEps = n(ks.trailingEps);
+  const forwardEps = n(ks.forwardEps);
+  let epsGrowth = null;
+  if (trailingEps != null && forwardEps != null && Math.abs(trailingEps) > 1e-9) {
+    epsGrowth = ((forwardEps - trailingEps) / Math.abs(trailingEps)) * 100;
+  }
 
-    const earningsGrowth = toPct(fd.earningsGrowth);
-    const revenueGrowth = toPct(fd.revenueGrowth);
+  const earningsGrowth = toPct(fd.earningsGrowth);
+  const revenueGrowth = toPct(fd.revenueGrowth);
 
-    return {
-      price,
-      chg: toPct(n(pr.regularMarketChangePercent)) ?? toPct(n(sd.regularMarketChangePercent)),
-      vol: n(sd.regularMarketVolume) ?? n(pr.regularMarketVolume),
-      avgVolume: n(sd.averageDailyVolume3Month) ?? n(pr.averageDailyVolume3Month),
-      relVol: (() => {
-        const vol = n(sd.regularMarketVolume) ?? n(pr.regularMarketVolume);
-        const adv = n(sd.averageDailyVolume3Month) ?? n(pr.averageDailyVolume3Month);
-        return vol != null && adv != null && adv > 0 ? vol / adv : null;
-      })(),
-      mktCap: n(pr.marketCap) ?? n(sd.marketCap),
-      pe: n(sd.trailingPE),
-      ps: n(sd.priceToSalesTrailing12Months),
-      peg: n(ks.pegRatio),
-      eps: trailingEps,
-      epsGrowth,
-      earningsGrowth,
-      revenueGrowth,
-      divYield: toPct(sd.dividendYield),
-      roe: toPct(fd.returnOnEquity),
-      beta: n(sd.beta) ?? n(ks.beta),
-      fiftyTwoWeekHigh,
-      fiftyTwoWeekLow,
-      high52wProximity,
-      low52wProximity,
-      country: typeof ap.country === "string" ? ap.country : null,
-      exchange:
-        typeof pr.exchangeName === "string"
-          ? pr.exchangeName
-          : typeof ap.exchange === "string"
-            ? ap.exchange
-            : null,
-      sector: typeof ap.sector === "string" ? ap.sector : null,
-      industry: typeof ap.industry === "string" ? ap.industry : null,
-      longName:
-        typeof pr.longName === "string"
-          ? pr.longName
-          : typeof pr.shortName === "string"
-            ? pr.shortName
-            : null,
-      logo: fmpStockLogoUrl(sym),
-      ...perf,
-    };
-  },
-  metricsComplete,
+  return {
+    price,
+    chg: toPct(n(pr.regularMarketChangePercent)) ?? toPct(n(sd.regularMarketChangePercent)),
+    vol: n(sd.regularMarketVolume) ?? n(pr.regularMarketVolume),
+    avgVolume: n(sd.averageDailyVolume3Month) ?? n(pr.averageDailyVolume3Month),
+    relVol: (() => {
+      const vol = n(sd.regularMarketVolume) ?? n(pr.regularMarketVolume);
+      const adv = n(sd.averageDailyVolume3Month) ?? n(pr.averageDailyVolume3Month);
+      return vol != null && adv != null && adv > 0 ? vol / adv : null;
+    })(),
+    mktCap: n(pr.marketCap) ?? n(sd.marketCap),
+    pe: n(sd.trailingPE),
+    ps: n(sd.priceToSalesTrailing12Months),
+    peg: n(ks.pegRatio),
+    eps: trailingEps,
+    epsGrowth,
+    earningsGrowth,
+    revenueGrowth,
+    divYield: toPct(sd.dividendYield),
+    roe: toPct(fd.returnOnEquity),
+    beta: n(sd.beta) ?? n(ks.beta),
+    fiftyTwoWeekHigh,
+    fiftyTwoWeekLow,
+    high52wProximity,
+    low52wProximity,
+    country: typeof ap.country === "string" ? ap.country : null,
+    exchange:
+      typeof pr.exchangeName === "string"
+        ? pr.exchangeName
+        : typeof ap.exchange === "string"
+          ? ap.exchange
+          : null,
+    sector: typeof ap.sector === "string" ? ap.sector : null,
+    industry: typeof ap.industry === "string" ? ap.industry : null,
+    longName:
+      typeof pr.longName === "string"
+        ? pr.longName
+        : typeof pr.shortName === "string"
+          ? pr.shortName
+          : null,
+    logo: fmpStockLogoUrl(sym),
+    ...perf,
+  };
+}
+
+export function clearSymbolMetricsCache(sym) {
+  const key = String(sym ?? "")
+    .trim()
+    .toUpperCase();
+  if (!key) return;
+  CACHE.delete(`screener:${key}`);
+  CACHE.delete(`screener:snapshot:${key}`);
+}
+
+export async function loadSymbolMetrics(sym) {
+  return cached(
+    `screener:${sym}`,
+    METRICS_TTL,
+    () => loadSymbolMetricsPayload(sym, { snapshot: false }),
+    metricsComplete,
+  );
+}
+
+/** Snapshot build — require 1M/3M perf and retry empty Yahoo charts. */
+export async function loadSymbolMetricsForSnapshot(sym) {
+  clearSymbolMetricsCache(sym);
+  return cached(
+    `screener:snapshot:${sym}`,
+    METRICS_TTL,
+    () => loadSymbolMetricsPayload(sym, { snapshot: true }),
+    snapshotMetricsComplete,
   );
 }
 
