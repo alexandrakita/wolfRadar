@@ -3,7 +3,15 @@ import "dotenv/config";
 
 import { closeDb } from "../lib/db.js";
 import { buildFullSnapshot } from "../lib/screener-snapshot/builder.js";
-import { countSnapshotRows } from "../lib/screener-snapshot/store.js";
+import {
+  getMinSnapshotRows,
+  getMinSnapshotPerfRows,
+  incompletePerfMessage,
+  incompleteSnapshotMessage,
+  isSnapshotComplete,
+  isSnapshotPerfComplete,
+} from "../lib/screener-snapshot/snapshot-quality.js";
+import { countSnapshotRows, countSnapshotRowsWithPerf } from "../lib/screener-snapshot/store.js";
 import { getOfficialRatingDate } from "../lib/wolf-rating/data-loader.js";
 
 const args = process.argv.slice(2);
@@ -32,9 +40,18 @@ try {
   });
 
   const count = countSnapshotRows(result.snapshotDate);
-  console.log(`\nDone — ${count} rows stored for ${result.snapshotDate}`);
+  const perfCount = countSnapshotRowsWithPerf(result.snapshotDate);
+  console.log(`\nDone — ${count} rows stored for ${result.snapshotDate} (${perfCount} with 1M/3M perf)`);
   if (count === 0) {
     console.error(`No rows stored for ${result.snapshotDate}. Build failed.`);
+    exitCode = 1;
+  } else if (!isSnapshotComplete(count)) {
+    console.error(incompleteSnapshotMessage(count));
+    console.error(`Minimum required rows: ${getMinSnapshotRows()}`);
+    exitCode = 1;
+  } else if (!isSnapshotPerfComplete(perfCount)) {
+    console.error(incompletePerfMessage(perfCount));
+    console.error(`Minimum required perf rows: ${getMinSnapshotPerfRows()}`);
     exitCode = 1;
   }
   if (result.redisPublish) {

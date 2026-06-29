@@ -2,8 +2,12 @@ name: Daily screener snapshot
 
 on:
   schedule:
-    # 11:00 UTC Mon–Fri (~6 AM US Eastern, before market open; SNAPSHOT_DATE pinned at job start)
+    # Primary: 11:00 UTC Mon–Fri (~6 AM US Eastern, before market open)
     - cron: "0 11 * * 1-5"
+    # Backup: 16:00 UTC Mon–Fri if the morning run was skipped or failed to publish
+    - cron: "0 16 * * 1-5"
+    # Weekend: Saturday noon UTC publishes Friday close for Sat/Sun users
+    - cron: "0 12 * * 6"
   workflow_dispatch:
 
 jobs:
@@ -26,18 +30,64 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Decide whether snapshot build is needed
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "mode=always" >> "$GITHUB_OUTPUT"
+            echo "Manual run — always build."
+            exit 0
+          fi
+
+          case "$SCHEDULE" in
+            "0 11 * * 1-5"|"0 12 * * 6")
+              echo "mode=always" >> "$GITHUB_OUTPUT"
+              echo "Scheduled primary/weekend run — always build."
+              ;;
+            "0 16 * * 1-5")
+              echo "mode=if_missing" >> "$GITHUB_OUTPUT"
+              echo "Scheduled backup run — build only if snapshot is missing."
+              ;;
+            *)
+              echo "mode=always" >> "$GITHUB_OUTPUT"
+              echo "Unknown schedule ($SCHEDULE) — defaulting to build."
+              ;;
+          esac
+
+      - name: Check published snapshot
+        id: check
+        if: steps.plan.outputs.mode == 'if_missing'
+        run: node scripts/check-snapshot-ready.js
+        env:
+          SNAPSHOT_STORE: redis
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        continue-on-error: true
+
+      - name: Skip — snapshot already published
+        if: steps.plan.outputs.mode == 'if_missing' && steps.check.outcome == 'success'
+        run: echo "Snapshot already in Redis. Backup run skipped."
+
       - name: Pin snapshot date
+        if: steps.plan.outputs.mode == 'always' || steps.check.outcome != 'success'
         run: |
           DATE=$(node --input-type=module -e "import { getOfficialRatingDate } from './lib/wolf-rating/data-loader.js'; console.log(getOfficialRatingDate());")
           echo "SNAPSHOT_DATE=$DATE" >> "$GITHUB_ENV"
           echo "Pinned snapshot date: $DATE"
 
       - name: Build screener snapshot (SQLite, ephemeral)
+        if: steps.plan.outputs.mode == 'always' || steps.check.outcome != 'success'
         run: npm run build-snapshot
         env:
           SNAPSHOT_STORE: sqlite
+          SNAPSHOT_CONCURRENCY: "1"
+          SNAPSHOT_MISSING_RETRY_DELAY_MS: "800"
 
       - name: Publish snapshot to Upstash Redis
+        if: steps.plan.outputs.mode == 'always' || steps.check.outcome != 'success'
         run: npm run publish-redis
         env:
           PUBLISH_REDIS: "1"

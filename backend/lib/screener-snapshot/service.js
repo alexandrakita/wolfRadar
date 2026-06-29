@@ -1,8 +1,18 @@
 import { getOfficialRatingDate } from "../wolf-rating/data-loader.js";
 import { passesSearch, passesStockFilters } from "./filters.js";
 import { dbRowToApiRow } from "./row-mapper.js";
+import { resolveSnapshotDate } from "./resolve-date.js";
+import {
+  getMinSnapshotRows,
+  getMinSnapshotPerfRows,
+  incompletePerfMessage,
+  incompleteSnapshotMessage,
+  isSnapshotComplete,
+  isSnapshotPerfComplete,
+} from "./snapshot-quality.js";
 import {
   countSnapshotRows,
+  countSnapshotRowsWithPerf,
   countWolfPicks,
   getSnapshotMeta,
   readAllSnapshotRows,
@@ -65,7 +75,8 @@ function compareRows(a, b, field, order) {
  * }} input
  */
 export async function queryScreener(input = {}) {
-  const snapshotDate = input.snapshotDate ?? getOfficialRatingDate();
+  const requestedDate = input.snapshotDate ?? getOfficialRatingDate();
+  const { snapshotDate, usedFallback } = await resolveSnapshotDate(requestedDate);
   const filters = input.filters ?? {};
   const quickFilters = Array.isArray(input.quickFilters) ? input.quickFilters : [];
   const q = input.q ?? "";
@@ -75,9 +86,14 @@ export async function queryScreener(input = {}) {
   const pageSize = Math.min(200, Math.max(1, Number(input.pageSize) || 50));
 
   const totalInStore = await countSnapshotRows(snapshotDate);
+  const perfInStore = await countSnapshotRowsWithPerf(snapshotDate);
+  const complete = isSnapshotComplete(totalInStore) && isSnapshotPerfComplete(perfInStore);
   if (totalInStore === 0) {
     return {
       snapshotDate,
+      requestedDate,
+      usedFallback,
+      complete: false,
       totalInStore: 0,
       total: 0,
       page,
@@ -108,28 +124,52 @@ export async function queryScreener(input = {}) {
 
   return {
     snapshotDate,
+    requestedDate,
+    usedFallback,
+    complete,
     totalInStore,
     total,
     page,
     pageSize,
     rows: paged,
-    ready: true,
+    ready: complete,
+    perfInStore,
+    message: complete
+      ? undefined
+      : !isSnapshotComplete(totalInStore)
+        ? incompleteSnapshotMessage(totalInStore)
+        : incompletePerfMessage(perfInStore),
     store: process.env.SNAPSHOT_STORE ?? "sqlite",
   };
 }
 
 export async function getScreenerStatus(snapshotDate) {
-  const date = snapshotDate ?? getOfficialRatingDate();
+  const requestedDate = snapshotDate ?? getOfficialRatingDate();
+  const { snapshotDate: date, usedFallback } = await resolveSnapshotDate(requestedDate);
   const meta = await getSnapshotMeta(date);
   const rowCount = await countSnapshotRows(date);
+  const perfCount = await countSnapshotRowsWithPerf(date);
   const picksCount = await countWolfPicks(date, 70);
+  const complete =
+    isSnapshotComplete(rowCount) && isSnapshotPerfComplete(perfCount);
 
   return {
     snapshotDate: date,
+    requestedDate,
+    usedFallback,
+    complete,
     rowCount,
+    perfCount,
     picksCount,
     meta,
-    ready: rowCount > 0,
+    ready: complete,
+    minRowCount: getMinSnapshotRows(),
+    minPerfCount: getMinSnapshotPerfRows(),
+    message: complete
+      ? undefined
+      : !isSnapshotComplete(rowCount)
+        ? incompleteSnapshotMessage(rowCount)
+        : incompletePerfMessage(perfCount),
     store: process.env.SNAPSHOT_STORE ?? "sqlite",
   };
 }

@@ -24,6 +24,14 @@ export async function countSnapshotRows(snapshotDate) {
   return (await sqliteStore()).countSnapshotRows(snapshotDate);
 }
 
+/** @param {string} snapshotDate */
+export async function countSnapshotRowsWithPerf(snapshotDate) {
+  if (useRedisSnapshotRead()) {
+    return (await redisStore()).countSnapshotRowsWithPerf(snapshotDate);
+  }
+  return (await sqliteStore()).countSnapshotRowsWithPerf(snapshotDate);
+}
+
 /** @param {string} [snapshotDate] */
 export async function getSnapshotMeta(snapshotDate) {
   if (useRedisSnapshotRead()) {
@@ -61,4 +69,10 @@ export async function readRatingRow(snapshotDate, symbol) {
 /** @param {string} snapshotDate @param {Record<string, unknown>[]} rows @param {object} [meta] */
 export async function publishSnapshotToRedis(snapshotDate, rows, meta) {
   return (await redisStore()).publishSnapshotToRedis(snapshotDate, rows, meta);
+}
+
+/** @returns {Promise<string | null>} */
+export async function getCurrentSnapshotDate() {
+  if (!useRedisSnapshotRead()) return null;
+  return (await redisStore()).getCurrentSnapshotDate();
 }

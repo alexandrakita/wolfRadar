@@ -292,6 +292,8 @@ export default function Page() {
     total: serverTotal,
     totalInStore,
     snapshotDate,
+    requestedDate,
+    usedFallback,
     ready: snapshotReady,
     message: snapshotMessage,
     loading: serverLoading,
@@ -647,6 +649,14 @@ export default function Page() {
               ) : null}
               .{" "}
               {serverTotal.toLocaleString()} match{serverTotal === 1 ? "" : "es"}.
+              {usedFallback && requestedDate && requestedDate !== snapshotDate ? (
+                <>
+                  {" "}
+                  Latest full snapshot for{" "}
+                  <span className="font-medium">{requestedDate}</span> is still building; showing{" "}
+                  <span className="font-medium">{snapshotDate}</span> instead.
+                </>
+              ) : null}
             </div>
           )}
           {useServerScreener && !serverLoading && !serverError && !snapshotReady && snapshotMessage && (

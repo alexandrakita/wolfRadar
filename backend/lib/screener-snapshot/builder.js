@@ -5,6 +5,7 @@ import { getWolfRating } from "../wolf-rating/service.js";
 import { buildSnapshotRecord } from "./row-mapper.js";
 import { publishSnapshotToRedis } from "./store-facade.js";
 import {
+  countSnapshotRows,
   countSnapshotRowsWithPerf,
   hasSnapshotRow,
   incrementSnapshotProgress,
@@ -16,10 +17,12 @@ import {
   updateSnapshotMeta,
   upsertSnapshotRow,
 } from "./store.js";
+import { getMinSnapshotRows, getMinSnapshotPerfRows, isSnapshotComplete, isSnapshotPerfComplete } from "./snapshot-quality.js";
 import { getUniverseMeta, loadUniverseSymbols } from "./universe.js";
 
 const BATCH_CONCURRENCY = Number(process.env.SNAPSHOT_CONCURRENCY) || 2;
 const BACKFILL_DELAY_MS = Number(process.env.SNAPSHOT_BACKFILL_DELAY_MS) || 400;
+const MISSING_RETRY_DELAY_MS = Number(process.env.SNAPSHOT_MISSING_RETRY_DELAY_MS) || 600;
 
 async function mapPool(items, worker, concurrency = BATCH_CONCURRENCY, delayMs = 0) {
   let i = 0;
@@ -109,6 +112,26 @@ export async function buildFullSnapshot(opts = {}) {
     concurrency,
   );
 
+  const missingSymbols = allSymbols.filter((sym) => !hasSnapshotRow(snapshotDate, sym));
+  if (missingSymbols.length) {
+    console.log(
+      `[snapshot] retry ${missingSymbols.length}/${allSymbols.length} missing symbols (delay ${MISSING_RETRY_DELAY_MS}ms)…`,
+    );
+    let retried = 0;
+    await mapPool(
+      missingSymbols,
+      async (sym) => {
+        await buildSymbolSnapshot(sym, snapshotDate, { skipExisting: false });
+        retried += 1;
+        if (retried % 25 === 0 || retried === missingSymbols.length) {
+          console.log(`[snapshot] missing retry ${retried}/${missingSymbols.length} (${sym})`);
+        }
+      },
+      1,
+      MISSING_RETRY_DELAY_MS,
+    );
+  }
+
   const missingPerf = listSnapshotSymbolsMissingPerf(snapshotDate);
   if (missingPerf.length) {
     console.log(
@@ -129,8 +152,40 @@ export async function buildFullSnapshot(opts = {}) {
     );
   }
 
-  const perfCount = countSnapshotRowsWithPerf(snapshotDate);
-  console.log(`[snapshot] perf coverage: ${perfCount}/${allSymbols.length}`);
+  let perfCount = countSnapshotRowsWithPerf(snapshotDate);
+  for (let round = 1; round <= 2 && !isSnapshotPerfComplete(perfCount); round += 1) {
+    const stillMissing = listSnapshotSymbolsMissingPerf(snapshotDate);
+    if (!stillMissing.length) break;
+    console.log(
+      `[snapshot] perf retry ${round}/2 for ${stillMissing.length} symbols (delay ${MISSING_RETRY_DELAY_MS}ms)…`,
+    );
+    await mapPool(
+      stillMissing,
+      async (sym) => {
+        await buildSymbolSnapshot(sym, snapshotDate, { skipExisting: false });
+      },
+      1,
+      MISSING_RETRY_DELAY_MS,
+    );
+    perfCount = countSnapshotRowsWithPerf(snapshotDate);
+  }
+
+  const storedCount = countSnapshotRows(snapshotDate);
+  console.log(
+    `[snapshot] row coverage: ${storedCount}/${allSymbols.length}, perf coverage: ${perfCount}/${allSymbols.length}`,
+  );
+
+  if (!isSnapshotComplete(storedCount)) {
+    throw new Error(
+      `[snapshot] incomplete — ${storedCount}/${allSymbols.length} rows stored (minimum ${getMinSnapshotRows()})`,
+    );
+  }
+
+  if (!isSnapshotPerfComplete(perfCount)) {
+    throw new Error(
+      `[snapshot] perf incomplete — ${perfCount}/${allSymbols.length} rows with 1M/3M returns (minimum ${getMinSnapshotPerfRows()})`,
+    );
+  }
 
   updateSnapshotMeta(snapshotDate, { completed: true });
   report();
@@ -155,7 +210,7 @@ export async function buildFullSnapshot(opts = {}) {
   return {
     snapshotDate,
     total: allSymbols.length,
-    rowCount: allSymbols.length,
+    rowCount: storedCount,
     perfRowCount: perfCount,
     redisPublish,
   };

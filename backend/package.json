@@ -8,6 +8,7 @@
     "recalc-ratings": "node scripts/recalc-wolf-ratings.js",
     "build-snapshot": "node scripts/build-screener-snapshot.js",
     "publish-redis": "node scripts/publish-snapshot-to-redis.js",
+    "check-snapshot": "node scripts/check-snapshot-ready.js",
     "daily-snapshot": "bash scripts/run-daily-snapshot.sh",
     "bootstrap-snapshot": "node scripts/bootstrap-snapshot.js"
   },

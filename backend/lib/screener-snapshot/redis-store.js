@@ -34,6 +34,12 @@ export async function countSnapshotRows(snapshotDate) {
   return rows.length;
 }
 
+/** @param {string} snapshotDate */
+export async function countSnapshotRowsWithPerf(snapshotDate) {
+  const rows = await readAllSnapshotRows(snapshotDate);
+  return rows.filter((r) => r.perf_1m != null && r.perf_3m != null).length;
+}
+
 /** @param {string} [snapshotDate] */
 export async function getSnapshotMeta(snapshotDate) {
   const redis = getRedis();

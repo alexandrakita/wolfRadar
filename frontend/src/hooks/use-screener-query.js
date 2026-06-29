@@ -105,6 +105,8 @@ export function useScreenerQuery(params, enabled = true) {
     total: data?.total ?? 0,
     totalInStore: data?.totalInStore ?? 0,
     snapshotDate: data?.snapshotDate ?? null,
+    requestedDate: data?.requestedDate ?? null,
+    usedFallback: data?.usedFallback ?? false,
     ready: data?.ready ?? false,
     message: data?.message ?? null,
     loading: enabled && query.isPending && !placeholder,
